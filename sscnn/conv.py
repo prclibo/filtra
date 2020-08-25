@@ -1,5 +1,4 @@
-from typing import Tuple, Callable, Iterable, List, Any, Dict
-
+from typing import Tuple, Callable, Iterable, List, Any, Dict, Union
 import math
 import numpy as np
 
@@ -7,104 +6,155 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-def comp_irreps_expansion_map(order, freqs):
-    cos_out, sin_out, cos_in, sin_in = [], [], [], []
+from .utils import *
+
+def unflatten(x, old_dim: int, new_dims: Tuple[int]):
+    old_shape = x.shape
+    new_shape = old_shape[:old_dim] + new_dims + old_shape[old_dim + 1:]
+    return x.reshape(new_shape)
+
+def comp_irreps_expansion_map(group: Tuple[int, int], irreps: torch.Tensor):
+    # TODO XXX Deal with D_N and reflection case.
     in_inds = []
-    f_inds = []
+    cs_inds = []
+    index = 0
+    for i, irrep in enumerate(irreps):
+        in_inds.append(i)
+        cs_inds.append(0)
+        if not irrep[1] in [0, group[1] / 2]:
+            in_inds.append(i)
+            cs_inds.append(1)
+
+    angles = torch.arange(group[1]) * math.pi * 2 / group[1]
+    angles = torch.ger(angles, irreps[:, 1].float()) # order x len(freqs)
+    bases = torch.stack([angles.cos(), angles.sin()], dim=2) # order x len(irreps) x 2
+    bases = bases[:, in_inds, cs_inds] # group[1] x dim(irreps)
+    flip = ((-1) ** irreps[:, 0])[in_inds].float() # dim(irreps)
+    flip = torch.stack((torch.ones(len(in_inds)), flip)) # 2 x dim(irreps)
+    flip = flip[:group[0]]
+    coeffs = flip.unsqueeze(1).mul(bases.unsqueeze(0)) # 2 x group[1] x dim(irreps)
+
+    return in_inds, coeffs
+
+def irreps_expand(in_inds, coeffs, x):
+    ''' x: sides x order x len(freqs) x ... -> '''
+    assert x.shape[0] in [1, 2] and coeffs.shape[:2] == x.shape[:2]
+
+    x = x[:, :, in_inds] # group[0] x group[1] x dim(irreps) x ...
+    # https://github.com/pytorch/pytorch/issues/9410
+    coeffs = coeffs[(...,) + (None,) * (x.dim() - 3)]
+    return x.mul(coeffs)
+
+def comp_rot_irreps_expansion_map(order, freqs):
+    # TODO XXX Deal with D_N and reflection case.
+    in_inds = []
+    cs_inds = []
     index = 0
     for fi, freq in enumerate(freqs):
         in_inds.append(fi)
-        f_inds.append(0)
+        cs_inds.append(0)
         if not freq in [0, order / 2]:
             in_inds.append(fi)
-            f_inds.append(1)
+            cs_inds.append(1)
 
     freqs = freqs if torch.is_tensor(freqs) else torch.tensor(freqs)
     angles = torch.arange(order) * math.pi * 2 / order 
     angles = torch.ger(angles, freqs.float()) # order x len(freqs)
     coeffs = torch.stack([angles.cos(), angles.sin()], dim=2) # order x len(freq) x 2
 
-    return in_inds, f_inds, coeffs
+    return in_inds, cs_inds, coeffs
 
-def irreps_expand(in_inds, f_inds, coeffs, x):
-    ''' x: order x len(freqs) -> '''
-    assert coeffs.shape[0] == x.shape[0]
+def rot_irreps_expand(in_inds, cs_inds, coeffs, x):
+    ''' x: sides x order x len(freqs) x ... -> '''
+    assert x.shape[0] in [1, 2] and coeffs.shape[0] == x.shape[1]
 
-    x = x[:, in_inds] # order x order x ...
+    x = x[:, :, in_inds] # side x order x order x ...
     # https://github.com/pytorch/pytorch/issues/9410
-    coeffs = coeffs[:, in_inds, f_inds][(...,) + (None,) * (x.dim() - 2)] # order x order
+    coeffs = coeffs[:, in_inds, cs_inds][(...,) + (None,) * (x.dim() - 3)] # order x order x ...
+    coeffs = coeffs.unsqueeze(0)
+    if x.shape[0] == 2:
+        coeffs = torch.cat((coeffs, -coeffs))
     return x.mul(coeffs)
 
 def comp_dctmat(order):
     # https://stackoverflow.com/questions/53875821/scipy-generate-nxn-discrete-cosine-matrix
     # from scipy.fftpack import dct
-    # self.dctmat = dct(np.eye(self.order), axis=1)
+    # self.dctmat = dct(np.eye(self.group[1]), axis=1)
     freqs = torch.arange(math.floor(order / 2) + 1)
-    params = comp_irreps_expansion_map(order, freqs)
-    return irreps_expand(*params, torch.ones(order, len(freqs)))
+    params = comp_rot_irreps_expansion_map(order, freqs)
+    return rot_irreps_expand(*params, torch.ones(1, order, len(freqs)))[0]
 
 def comp_affine_grid(order, kernel_size):
-    size = torch.tensor((order, 1) + kernel_size)
+    # TODO XXX Use disk shape 
+    size = torch.tensor((2 * order, 1) + kernel_size)
 
-    aff = torch.zeros([order, 2, 3])
+    aff = torch.zeros([2, order, 2, 3]) # reflection x order x 2 x 3
     angles = torch.arange(order) * math.pi * 2 / order 
     cos_na, sin_na = angles.cos(), angles.sin()
-    aff[:, 0, 0] = cos_na
-    aff[:, 0, 1] = -sin_na
-    aff[:, 1, 0] = sin_na
-    aff[:, 1, 1] = cos_na
+    aff[0, :, 0, 0] = cos_na
+    aff[0, :, 0, 1] = -sin_na
+    aff[0, :, 1, 0] = sin_na
+    aff[0, :, 1, 1] = cos_na
+    aff[1, :, 0, 0] = cos_na
+    aff[1, :, 0, 1] = -sin_na
+    aff[1, :, 1, 0] = -sin_na
+    aff[1, :, 1, 1] = -cos_na
+    grid = F.affine_grid(aff.flatten(0, 1), size.tolist(), False)
 
-    return F.affine_grid(aff, size.tolist(), False)
-    # https://discuss.pytorch.org/t/affine-transformation-matrix-paramters-conversion/19522/18
+    return unflatten(grid, 0, (2, order))
 
 class RegularToIrrep(nn.Conv2d):
-    def __init__(self, order: int,
-            in_mult: int, out_irreps: List, kernel_size: int, **kwargs):
-        self.order = order
+    def __init__(self, group: Tuple[int, int],
+            in_mult: int, out_irreps: List[Tuple[int, int]],
+            kernel_size: int, **kwargs):
+
+        self.group = group
+        [check_validity(None, irrep, group) for irrep in out_irreps]
+
         self.in_mult = in_mult
-        self.out_irreps = torch.Tensor(out_irreps)
+        self.out_irreps = torch.IntTensor(out_irreps)
 
         in_channels = in_mult 
         out_channels = len(out_irreps)
         super(RegularToIrrep, self).__init__(
                 in_channels, out_channels, kernel_size, **kwargs)
 
-        self.grid = comp_affine_grid(order, self.kernel_size)
-        self.dctmat = comp_dctmat(order)
-        self.expansion_params = comp_irreps_expansion_map(order, self.out_irreps)
-
-        assert all([f <= order / 2 for f in out_irreps])
+        self.grid = comp_affine_grid(self.group[1], self.kernel_size)
+        self.expansion_params = comp_irreps_expansion_map(self.group, self.out_irreps)
 
         # TODO XXX Deal with bias, refering to e2cnn
 
     def expand_filters(self, weight):
-        # len(out_irreps) x in_mult x h x w => order x [len(out_irreps) x in_mult] x h x w
+        # len(out_irreps) x in_mult x h x w => [sides x order] x [len(out_irreps) x in_mult] x h x w
         weight = weight.flatten(0, 1).unsqueeze(0)
-        weight = weight.expand(self.order, -1, -1, -1)
+        weight = weight.expand(self.group[0] * self.group[1], -1, -1, -1)
+        grid = self.grid[0:self.group[0], 0:self.group[1]].flatten(0, 1)
 
-        # filter shape => order x [len(out_irreps) x in_mult] x h x w
-        steered = F.grid_sample(weight, self.grid, align_corners=False, padding_mode='border')
-        shape = (self.order, self.out_channels, self.in_channels,) + self.kernel_size
-        # => order x len(out_irreps) x in_mult x h x w
-        steered = steered.reshape(shape)
-        # => order (steered) x out_dims x in_mult x h x w
+        # filter shape => [sides x order] x [len(out_irreps) x in_mult] x h x w
+        steered = F.grid_sample(weight, grid, align_corners=False, padding_mode='border')
+        # => sides x order x len(out_irreps) x in_mult x h x w
+        steered = unflatten(steered, 1, (self.out_channels, self.in_channels))
+        steered = unflatten(steered, 0, (self.group[0], self.group[1]))
+        # => sides x order (steered) x out_dims x in_mult x h x w
         filters = irreps_expand(*self.expansion_params, steered)
-        filters = filters.permute(1, 2, 0, 3, 4).flatten(1, 2)
+        # => out_dims x [in_mult x sides x order] x h x w
+        filters = filters.permute(2, 3, 0, 1, 4, 5).flatten(1, 3)
         return filters
 
     def forward(self, x):
-        filters = self.expand_filters(self.weight)
-        return F.conv2d(x, filters, self.bias, self.stride,
+        self.filters = self.expand_filters(self.weight)
+        return F.conv2d(x, self.filters, self.bias, self.stride,
                 self.padding, self.dilation, self.groups)
 
 class IrrepToRegular(RegularToIrrep):
-    def __init__(self, order: int,
-            in_irreps: List, out_mult: int, kernel_size: int, **kwargs):
-        super(IrrepToRegular, self).__init__(order, out_mult, in_irreps, kernel_size, **kwargs)
+    def __init__(self, group: Tuple[int, int],
+            in_irreps: List[Tuple[int, int]], out_mult: int,
+            kernel_size: int, **kwargs):
+        super(IrrepToRegular, self).__init__(group, out_mult, in_irreps, kernel_size, **kwargs)
 
     def forward(self, x):
         filters = self.expand_filters(self.weight)
-        filters= filters.permute(1, 0, 2, 3)
+        filters = filters.permute(1, 0, 2, 3)
         return F.conv2d(x, filters, self.bias, self.stride,
                 self.padding, self.dilation, self.groups)
 
