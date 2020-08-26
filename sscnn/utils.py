@@ -9,6 +9,7 @@ def rot_mat(angle):
     return torch.Tensor([[c, -s], [s, c]])
 
 def ref_mat(s):
+    # return torch.Tensor([[(-1.)**s, 0.], [0., (-1.)**s]])
     return torch.Tensor([[1., 0.], [0., (-1.)**s]])
 
 def block_diag(blocks):
@@ -45,7 +46,11 @@ def psi(elem: Tuple[int, int], irrep: Tuple[int, int], group: Tuple[int, int]):
         psi_r = torch.tensor(((-1) ** irrep[1]) ** elem[1])
         return (psi_s * psi_r).reshape(1, 1)
     else:
-        return tform_mat(elem, irrep, group)
+        delta = math.pi * 2 / group[1]
+        psi_r = rot_mat(irrep[1] * elem[1] * delta)
+        psi_s = torch.eye(2) * ((-1)**irrep[0])
+        # psi_s = ref_mat(irrep[0] * elem[0])
+        return psi_s @ psi_r
 
 def rotate_trivials(x, elem: Tuple[int, int], group: Tuple[int, int]):
     aff = torch.zeros(x.shape[0], 2, 3)
@@ -64,7 +69,8 @@ def rotate_regulars(x, elem: Tuple[int, int], group: Tuple[int, int]):
     if elem[0] == 0:
         rotated = rotated.roll(elem[1], dims=3).flatten(2, 3)
     else:
-        rotated = rotated.roll(-elem[1], dims=3).flatten(2, 3).flip(2)
+        rotated = rotated.roll(-((elem[1] + 1) % group[1]), dims=3).flatten(2, 3)
+        rotated = rotated.flip(2)
     return rotated.flatten(1, 2)
 
 def rotate_irreps(x, elem: Tuple[int, int], irreps: List[Tuple[int, int]], group: Tuple[int, int]):

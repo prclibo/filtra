@@ -13,8 +13,7 @@ def unflatten(x, old_dim: int, new_dims: Tuple[int]):
     new_shape = old_shape[:old_dim] + new_dims + old_shape[old_dim + 1:]
     return x.reshape(new_shape)
 
-def comp_irreps_expansion_map(group: Tuple[int, int], irreps: torch.Tensor):
-    # TODO XXX Deal with D_N and reflection case.
+def comp_irreps_expan_inds(group: Tuple[int, int], irreps: torch.Tensor):
     in_inds = []
     cs_inds = []
     index = 0
@@ -25,6 +24,10 @@ def comp_irreps_expansion_map(group: Tuple[int, int], irreps: torch.Tensor):
             in_inds.append(i)
             cs_inds.append(1)
 
+    return in_inds, cs_inds
+
+def comp_irreps_expan_coeffs(group: Tuple[int, int], irreps: torch.Tensor,
+        in_inds, cs_inds):
     angles = torch.arange(group[1]) * math.pi * 2 / group[1]
     angles = torch.ger(angles, irreps[:, 1].float()) # order x len(freqs)
     bases = torch.stack([angles.cos(), angles.sin()], dim=2) # order x len(irreps) x 2
@@ -34,7 +37,7 @@ def comp_irreps_expansion_map(group: Tuple[int, int], irreps: torch.Tensor):
     flip = flip[:group[0]]
     coeffs = flip.unsqueeze(1).mul(bases.unsqueeze(0)) # 2 x group[1] x dim(irreps)
 
-    return in_inds, coeffs
+    return coeffs
 
 def irreps_expand(in_inds, coeffs, x):
     ''' x: sides x order x len(freqs) x ... -> '''
@@ -85,7 +88,6 @@ def comp_dctmat(order):
     return rot_irreps_expand(*params, torch.ones(1, order, len(freqs)))[0]
 
 def comp_affine_grid(order, kernel_size):
-    # TODO XXX Use disk shape 
     size = torch.tensor((2 * order, 1) + kernel_size)
 
     aff = torch.zeros([2, order, 2, 3]) # reflection x order x 2 x 3
@@ -96,10 +98,13 @@ def comp_affine_grid(order, kernel_size):
     aff[0, :, 1, 0] = sin_na
     aff[0, :, 1, 1] = cos_na
     aff[1, :, 0, 0] = cos_na
-    aff[1, :, 0, 1] = -sin_na
-    aff[1, :, 1, 0] = -sin_na
+    aff[1, :, 0, 1] = sin_na
+    aff[1, :, 1, 0] = sin_na
     aff[1, :, 1, 1] = -cos_na
     grid = F.affine_grid(aff.flatten(0, 1), size.tolist(), False)
+
+    disk_mask = (grid.norm(dim=-1) > 1).unsqueeze(-1)
+    grid.masked_fill_(disk_mask, 100)
 
     return unflatten(grid, 0, (2, order))
 
@@ -120,7 +125,9 @@ class RegularToIrrep(nn.Conv2d):
                 in_channels, out_channels, kernel_size, **kwargs)
 
         self.grid = comp_affine_grid(self.group[1], self.kernel_size)
-        self.expansion_params = comp_irreps_expansion_map(self.group, self.out_irreps)
+        self.in_inds, cs_inds = comp_irreps_expan_inds(self.group, self.out_irreps)
+        self.expan_coeffs = comp_irreps_expan_coeffs(self.group, self.out_irreps,
+                self.in_inds, cs_inds)
 
         # TODO XXX Deal with bias, refering to e2cnn
 
@@ -131,12 +138,12 @@ class RegularToIrrep(nn.Conv2d):
         grid = self.grid[0:self.group[0], 0:self.group[1]].flatten(0, 1)
 
         # filter shape => [sides x order] x [len(out_irreps) x in_mult] x h x w
-        steered = F.grid_sample(weight, grid, align_corners=False, padding_mode='border')
+        steered = F.grid_sample(weight, grid, align_corners=False, padding_mode='zeros')
         # => sides x order x len(out_irreps) x in_mult x h x w
         steered = unflatten(steered, 1, (self.out_channels, self.in_channels))
         steered = unflatten(steered, 0, (self.group[0], self.group[1]))
         # => sides x order (steered) x out_dims x in_mult x h x w
-        filters = irreps_expand(*self.expansion_params, steered)
+        filters = irreps_expand(self.in_inds, self.expan_coeffs, steered)
         # => out_dims x [in_mult x sides x order] x h x w
         filters = filters.permute(2, 3, 0, 1, 4, 5).flatten(1, 3)
         return filters
