@@ -48,44 +48,17 @@ def irreps_expand(in_inds, coeffs, x):
     coeffs = coeffs[(...,) + (None,) * (x.dim() - 3)]
     return x.mul(coeffs)
 
-def comp_rot_irreps_expansion_map(order, freqs):
-    # TODO XXX Deal with D_N and reflection case.
-    in_inds = []
-    cs_inds = []
-    index = 0
-    for fi, freq in enumerate(freqs):
-        in_inds.append(fi)
-        cs_inds.append(0)
-        if not freq in [0, order / 2]:
-            in_inds.append(fi)
-            cs_inds.append(1)
-
-    freqs = freqs if torch.is_tensor(freqs) else torch.tensor(freqs)
-    angles = torch.arange(order) * math.pi * 2 / order 
-    angles = torch.ger(angles, freqs.float()) # order x len(freqs)
-    coeffs = torch.stack([angles.cos(), angles.sin()], dim=2) # order x len(freq) x 2
-
-    return in_inds, cs_inds, coeffs
-
-def rot_irreps_expand(in_inds, cs_inds, coeffs, x):
-    ''' x: sides x order x len(freqs) x ... -> '''
-    assert x.shape[0] in [1, 2] and coeffs.shape[0] == x.shape[1]
-
-    x = x[:, :, in_inds] # side x order x order x ...
-    # https://github.com/pytorch/pytorch/issues/9410
-    coeffs = coeffs[:, in_inds, cs_inds][(...,) + (None,) * (x.dim() - 3)] # order x order x ...
-    coeffs = coeffs.unsqueeze(0)
-    if x.shape[0] == 2:
-        coeffs = torch.cat((coeffs, -coeffs))
-    return x.mul(coeffs)
-
-def comp_dctmat(order):
+def comp_dctmat(group):
+    order = group[0] * group[1]
     # https://stackoverflow.com/questions/53875821/scipy-generate-nxn-discrete-cosine-matrix
     # from scipy.fftpack import dct
     # self.dctmat = dct(np.eye(self.group[1]), axis=1)
-    freqs = torch.arange(math.floor(order / 2) + 1)
-    params = comp_rot_irreps_expansion_map(order, freqs)
-    return rot_irreps_expand(*params, torch.ones(1, order, len(freqs)))[0]
+    freqs = torch.arange(math.floor(group[1] / 2) + 1)
+    irreps = torch.Tensor([[s, r] for s in range(group[0]) for r in range(group[1] // 2 + 1)])
+    in_inds, cs_inds = comp_irreps_expan_inds(group, irreps)
+    coeffs = comp_irreps_expan_coeffs(group, irreps, in_inds, cs_inds)
+    dct = irreps_expand(in_inds, coeffs, torch.ones(group[0], group[1], len(irreps)))
+    return F.normalize(dct, dim=1)
 
 def comp_affine_grid(order, kernel_size):
     size = torch.tensor((2 * order, 1) + kernel_size)
@@ -164,4 +137,25 @@ class IrrepToRegular(RegularToIrrep):
         filters = filters.permute(1, 0, 2, 3)
         return F.conv2d(x, filters, self.bias, self.stride,
                 self.padding, self.dilation, self.groups)
+
+class RegularToRegular(RegularToIrrep):
+    def __init__(self, group: Tuple[int, int], in_mult:int, out_mult: int,
+            kernel_size: int, **kwargs):
+        out_irreps = [(s, r) for s in range(group[0]) for r in range(group[1] // 2 + 1)]
+        out_irreps *= out_mult
+        super(RegularToRegular, self).__init__(group, in_mult, out_irreps, kernel_size, **kwargs)
+
+        self.out_mult = out_mult
+        self.dct_mat = comp_dctmat(group)
+
+    def forward(self, x):
+        order = self.group[0] * self.group[1]
+        filters = self.expand_filters(self.weight)
+        filters = filters.permute(1, 0, 2, 3)
+        # N x out_dims x Hout x Wout
+        x = F.conv2d(x, filters, self.bias, self.stride, self.padding, self.dilation, self.groups)
+        x = unflatten(x, 1, (self.out_mult, order))
+        return torch.einsum('cd,nodhw->nochw', self.dct_mat, x)
+
+
 

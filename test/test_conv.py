@@ -150,61 +150,6 @@ class ConvTest(unittest.TestCase):
             print(elem, 'max_rel_err =', err.detach(), 'max_abs_err', (y1 - y1_).abs().max().detach())
             self.assertTrue(y1.allclose(y1_, rtol=2e-2))
 
-
-    def test_regular_to_irrep_Dn(self):
-        in_mult = 1
-        group = (2, self.rotation)
-        out_irreps = [(1, 0)] #, (0, 1), (0, 2)]
-
-        # in_type, out_type, r2_conv = e2cnn_regular_to_irrep(group, in_mult, out_irreps, self.kernel_size, bias=False)
-        ss_conv = RegularToIrrep(group, in_mult, out_irreps, self.kernel_size, bias=False)
-        nn.init.uniform_(ss_conv.weight)
-        # ss_conv.weight[0, 0, 0:3, 0:7] = 0
-
-        # r2_shrinken = shrink_regular_irrep_kernel(group, out_irreps, r2_conv.filter)
-        order = group[0] * group[1]
-        #ss_conv.weight[:] = r2_shrinken[:, ::order]
-
-        x0 = torch.zeros(self.batch_size, in_mult, 2 * self.rotation, self.height, self.width)
-        # x0 = torch.rand(self.batch_size, in_mult, self.rotation, self.height, self.width)
-        x0[:, :, 0] = self.patch
-        # x0 = torch.ones(self.batch_size, in_mult, 2 * self.rotation, self.height, self.width)
-
-        x0 = x0.flatten(1, 2)
-        y0_ss = ss_conv.forward(x0)
-
-        # import matplotlib.pyplot as plt
-        # plt.imshow(torch.cat((x0[0, 0],)).detach())
-        # plt.show()
-        # import pdb; pdb.set_trace()
-        # y0_r2 = r2_conv.forward(e2cnn.nn.GeometricTensor(x0, in_type)).tensor
-        # import pdb; pdb.set_trace()
-
-        for i in range(self.rotation):
-            elem = (1, i)
-
-            x1 = rotate_regulars(x0, elem, group)
-            # import matplotlib.pyplot as plt
-            # plt.imshow(torch.cat((x0[0, 0], x1[0, 10])).detach())
-            # plt.show()
-
-            y1_ss = ss_conv.forward(x1)
-            y1_ss = y1_ss[:, :, self.center_mask]
-            y2_ss = rotate_irreps(y0_ss, elem, out_irreps, group)
-            y2_ss = y2_ss[:, :, self.center_mask]
-
-            rel_err_ss = comp_irrep_rel_err(group, out_irreps, y1_ss, y2_ss)
-            print(rel_err_ss)
-
-            # y1_r2 = r2_conv.forward(e2cnn.nn.GeometricTensor(x1, in_type)).tensor
-            # y1_r2 = y1_r2[:, :, self.center_mask]
-            # y2_r2 = rotate_irreps(y0_r2, elem, out_irreps, group)
-            # y2_r2 = y2_r2[:, :, self.center_mask]
-            # rel_err_r2 = comp_irrep_rel_err(group, out_irreps, y1_r2, y2_r2)
-            # print(rel_err_r2)
-            # print('-----------')
-
-
     def test_regular_to_irrep_Cn(self):
         in_mult = 2
         group = (1, self.rotation)
@@ -266,11 +211,64 @@ class ConvTest(unittest.TestCase):
             rel_err_ss = comp_regular_rel_err(group, y1, y1_)
             print(elem, 'max_rel_err =', rel_err_ss)
 
-    
+    def test_regular_to_irrep_Dn(self):
+        in_mult = 1
+        group = (2, self.rotation)
+        out_irreps = [(1, 0), (1, 1), (1, 2)]
+
+        in_type, out_type, r2_conv = e2cnn_regular_to_irrep(group, in_mult, out_irreps, self.kernel_size, bias=False)
+        ss_conv = RegularToIrrep(group, in_mult, out_irreps, self.kernel_size, bias=False)
+        nn.init.uniform_(ss_conv.weight)
+        # ss_conv.weight[0, 0, 0:3, 0:7] = 0
+
+        r2_shrinken = shrink_regular_irrep_kernel(group, out_irreps, r2_conv.filter)
+        order = group[0] * group[1]
+        ss_conv.weight[:] = r2_shrinken[:, ::order]
+
+        x0 = torch.zeros(self.batch_size, in_mult, 2 * self.rotation, self.height, self.width)
+        # x0 = torch.rand(self.batch_size, in_mult, self.rotation, self.height, self.width)
+        x0[:, :, 0] = self.patch
+        # x0 = torch.ones(self.batch_size, in_mult, 2 * self.rotation, self.height, self.width)
+
+        x0 = x0.flatten(1, 2)
+        y0_ss = ss_conv.forward(x0)
+
+        # import matplotlib.pyplot as plt
+        # plt.imshow(torch.cat((x0[0, 0],)).detach())
+        # plt.show()
+        # import pdb; pdb.set_trace()
+        # y0_r2 = r2_conv.forward(e2cnn.nn.GeometricTensor(x0, in_type)).tensor
+        # import pdb; pdb.set_trace()
+
+        for i in range(self.rotation):
+            elem = (1, i)
+
+            x1 = rotate_regulars(x0, elem, group)
+            # import matplotlib.pyplot as plt
+            # plt.imshow(torch.cat((x0[0, 0], x1[0, 10])).detach())
+            # plt.show()
+
+            y1_ss = ss_conv.forward(x1)
+            y1_ss = y1_ss[:, :, self.center_mask]
+            y2_ss = rotate_irreps(y0_ss, elem, out_irreps, group)
+            y2_ss = y2_ss[:, :, self.center_mask]
+
+            rel_err_ss = comp_irrep_rel_err(group, out_irreps, y1_ss, y2_ss)
+            print(rel_err_ss)
+
+            # y1_r2 = r2_conv.forward(e2cnn.nn.GeometricTensor(x1, in_type)).tensor
+            # y1_r2 = y1_r2[:, :, self.center_mask]
+            # y2_r2 = rotate_irreps(y0_r2, elem, out_irreps, group)
+            # y2_r2 = y2_r2[:, :, self.center_mask]
+            # rel_err_r2 = comp_irrep_rel_err(group, out_irreps, y1_r2, y2_r2)
+            # print(rel_err_r2)
+            # print('-----------')
+
+
 T = ConvTest()
 T.setUp()
 # T.test_regular_to_irrep_reflection()
 # T.test_irrep_to_regular_reflection()
-# T.test_regular_to_irrep_Dn()
 T.test_regular_to_irrep_Cn()
-T.test_irrep_to_regular_Cn()
+# T.test_irrep_to_regular_Cn()
+# T.test_regular_to_irrep_Dn()
