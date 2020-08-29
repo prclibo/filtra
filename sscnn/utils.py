@@ -42,16 +42,21 @@ def tform_mat(elem: Tuple[int, int], irrep: Tuple[int, int], group: Tuple[int, i
 
 def irrep_mat(elem: Tuple[int, int], irrep: Tuple[int, int], group: Tuple[int, int]):
     check_validity(elem, irrep, group)
-    if irrep[1] in [0, group[1] / 2]:
-        irrep_mat_s = torch.tensor(((-1) ** irrep[0]) ** elem[0])
-        irrep_mat_r = torch.tensor(((-1) ** irrep[1]) ** elem[1])
-        return (irrep_mat_s * irrep_mat_r).reshape(1, 1)
+    # if irrep[1] in [0, group[1] / 2]:
+    #     irrep_mat_s = torch.tensor(((-1) ** irrep[0]) ** elem[0])
+    #     irrep_mat_r = torch.tensor(((-1)) ** irrep[1])
+    #     return (irrep_mat_s * irrep_mat_r).reshape(1, 1)
+    if irrep[1] == 0:
+        return torch.tensor((((-1) ** irrep[0]) ** elem[0])).reshape(1, 1)
+    elif irrep[1] == group[1] / 2:
+        return torch.tensor(((-1) ** elem[1]) * (((-1) ** irrep[0]) ** elem[0])).reshape(1, 1)
     else:
         delta = math.pi * 2 / group[1]
         irrep_mat_r = rot_mat(irrep[1] * elem[1] * delta)
         irrep_mat_s = torch.eye(2) * ((-1)**irrep[0])
         # XXX Why???
-        irrep_mat_s = ref_mat(elem[0]) * ((-1)**irrep[0])**elem[1]
+        irrep_mat_s = ref_mat(elem[0]) * ((-1)**irrep[0])**elem[0]
+        # irrep_mat_s = torch.eye(2) * ((-1)**irrep[0])
         # irrep_mat_s = ref_mat(irrep[0] * elem[0])
         return irrep_mat_r @ irrep_mat_s
 
@@ -85,6 +90,7 @@ def rotate_regulars(x, elem: Tuple[int, int], group: Tuple[int, int]):
 def rotate_irreps(x, elem: Tuple[int, int], irreps: List[Tuple[int, int]], group: Tuple[int, int]):
     angle = math.pi * 2 * elem[1] / group[1]
     repr_mat = block_diag(irrep_mat(elem, irrep, group) for irrep in irreps)
+    # print(repr_mat)
     assert x.shape[1] == repr_mat.shape[1]
 
     rotated = rotate_trivials(x, elem, group)

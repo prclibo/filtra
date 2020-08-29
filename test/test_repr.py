@@ -26,14 +26,17 @@ class ReprTest(unittest.TestCase):
 
     def test_comp_dctmat(self):
         group = (2, 5)
-        elem = (1, 1)
-        dct_mat = comp_dctmat(group).flatten(0, 1)
+        elem = (1, 2)
+        dct_mat = comp_dctmat(group)
         irreps = [(s, r) for s in range(group[0]) for r in range(group[1] // 2 + 1)]
         repr_mat = block_diag(irrep_mat(elem, irrep, group) for irrep in irreps)
 
-        print(dct_mat.detach().numpy())
-        print(repr_mat.detach().numpy())
-        print(dct_mat @ repr_mat @ dct_mat.transpose(0, 1))
+        regular_mat0 = regular_mat(elem, group)
+        regular_mat1 = dct_mat @ repr_mat @ dct_mat.transpose(0, 1)
+        
+        print(regular_mat0)
+        print(regular_mat1)
+
         
         
 

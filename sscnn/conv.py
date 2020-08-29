@@ -58,7 +58,7 @@ def comp_dctmat(group):
     in_inds, cs_inds = comp_irreps_expan_inds(group, irreps)
     coeffs = comp_irreps_expan_coeffs(group, irreps, in_inds, cs_inds)
     dct = irreps_expand(in_inds, coeffs, torch.ones(group[0], group[1], len(irreps)))
-    return F.normalize(dct, dim=1)
+    return F.normalize(dct.flatten(0, 1), dim=0)
 
 def comp_affine_grid(order, kernel_size):
     size = torch.tensor((2 * order, 1) + kernel_size)
@@ -101,6 +101,8 @@ class RegularToIrrep(nn.Conv2d):
         self.in_inds, cs_inds = comp_irreps_expan_inds(self.group, self.out_irreps)
         self.expan_coeffs = comp_irreps_expan_coeffs(self.group, self.out_irreps,
                 self.in_inds, cs_inds)
+
+        print('weight', self.weight.shape)
 
         # TODO XXX Deal with bias, refering to e2cnn
 
@@ -150,12 +152,11 @@ class RegularToRegular(RegularToIrrep):
 
     def forward(self, x):
         order = self.group[0] * self.group[1]
-        filters = self.expand_filters(self.weight)
-        filters = filters.permute(1, 0, 2, 3)
         # N x out_dims x Hout x Wout
-        x = F.conv2d(x, filters, self.bias, self.stride, self.padding, self.dilation, self.groups)
+        x = super(RegularToRegular, self).forward(x)
         x = unflatten(x, 1, (self.out_mult, order))
-        return torch.einsum('cd,nodhw->nochw', self.dct_mat, x)
+        x = torch.einsum('cd,nodhw->nochw', self.dct_mat, x)
+        return x.flatten(1, 2)
 
 
 
