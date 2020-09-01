@@ -90,7 +90,6 @@ def rotate_regulars(x, elem: Tuple[int, int], group: Tuple[int, int]):
 def rotate_irreps(x, elem: Tuple[int, int], irreps: List[Tuple[int, int]], group: Tuple[int, int]):
     angle = math.pi * 2 * elem[1] / group[1]
     repr_mat = block_diag(irrep_mat(elem, irrep, group) for irrep in irreps)
-    # print(repr_mat)
     assert x.shape[1] == repr_mat.shape[1]
 
     rotated = rotate_trivials(x, elem, group)

@@ -306,7 +306,7 @@ class ConvTest(unittest.TestCase):
 
 T = ConvTest()
 T.setUp()
-T.test_regular_to_irrep_reflection()
+# T.test_regular_to_irrep_reflection()
 # T.test_irrep_to_regular_reflection()
 # T.test_regular_to_irrep_Cn()
 # T.test_irrep_to_regular_Cn()

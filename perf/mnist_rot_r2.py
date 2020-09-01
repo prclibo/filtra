@@ -1,3 +1,11 @@
+import torch
+
+from e2cnn import gspaces
+from e2cnn import nn
+
+import e2cnn
+import sscnn.e2cnn
+
 from torch.utils.data import Dataset
 from torchvision.transforms import RandomRotation
 from torchvision.transforms import Pad
@@ -8,6 +16,11 @@ from torchvision.transforms import Compose
 import numpy as np
 
 from PIL import Image
+
+DATA_FOLDER='/home/li/data/'
+
+conv_func = nn.R2Conv
+conv_func = sscnn.e2cnn.SSConv
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -32,7 +45,7 @@ class C8SteerableCNN(torch.nn.Module):
         out_type = nn.FieldType(self.r2_act, 24*[self.r2_act.regular_repr])
         self.block1 = nn.SequentialModule(
             nn.MaskModule(in_type, 29, margin=1),
-            nn.R2Conv(in_type, out_type, kernel_size=7, padding=1, bias=False),
+            conv_func(in_type, out_type, kernel_size=7, padding=1, bias=False),
             nn.InnerBatchNorm(out_type),
             nn.ReLU(out_type, inplace=True)
         )
@@ -43,7 +56,7 @@ class C8SteerableCNN(torch.nn.Module):
         # the output type of the second convolution layer are 32 regular feature fields of C8
         out_type = nn.FieldType(self.r2_act, 48*[self.r2_act.regular_repr])
         self.block2 = nn.SequentialModule(
-            nn.R2Conv(in_type, out_type, kernel_size=5, padding=2, bias=False),
+            conv_func(in_type, out_type, kernel_size=5, padding=2, bias=False),
             nn.InnerBatchNorm(out_type),
             nn.ReLU(out_type, inplace=True)
         )
@@ -57,7 +70,7 @@ class C8SteerableCNN(torch.nn.Module):
         # the output type of the third convolution layer are 32 regular feature fields of C8
         out_type = nn.FieldType(self.r2_act, 48*[self.r2_act.regular_repr])
         self.block3 = nn.SequentialModule(
-            nn.R2Conv(in_type, out_type, kernel_size=5, padding=2, bias=False),
+            conv_func(in_type, out_type, kernel_size=5, padding=2, bias=False),
             nn.InnerBatchNorm(out_type),
             nn.ReLU(out_type, inplace=True)
         )
@@ -68,7 +81,7 @@ class C8SteerableCNN(torch.nn.Module):
         # the output type of the fourth convolution layer are 64 regular feature fields of C8
         out_type = nn.FieldType(self.r2_act, 96*[self.r2_act.regular_repr])
         self.block4 = nn.SequentialModule(
-            nn.R2Conv(in_type, out_type, kernel_size=5, padding=2, bias=False),
+            conv_func(in_type, out_type, kernel_size=5, padding=2, bias=False),
             nn.InnerBatchNorm(out_type),
             nn.ReLU(out_type, inplace=True)
         )
@@ -82,7 +95,7 @@ class C8SteerableCNN(torch.nn.Module):
         # the output type of the fifth convolution layer are 64 regular feature fields of C8
         out_type = nn.FieldType(self.r2_act, 96*[self.r2_act.regular_repr])
         self.block5 = nn.SequentialModule(
-            nn.R2Conv(in_type, out_type, kernel_size=5, padding=2, bias=False),
+            conv_func(in_type, out_type, kernel_size=5, padding=2, bias=False),
             nn.InnerBatchNorm(out_type),
             nn.ReLU(out_type, inplace=True)
         )
@@ -93,7 +106,7 @@ class C8SteerableCNN(torch.nn.Module):
         # the output type of the sixth convolution layer are 64 regular feature fields of C8
         out_type = nn.FieldType(self.r2_act, 64*[self.r2_act.regular_repr])
         self.block6 = nn.SequentialModule(
-            nn.R2Conv(in_type, out_type, kernel_size=5, padding=1, bias=False),
+            conv_func(in_type, out_type, kernel_size=5, padding=1, bias=False),
             nn.InnerBatchNorm(out_type),
             nn.ReLU(out_type, inplace=True)
         )
@@ -115,6 +128,10 @@ class C8SteerableCNN(torch.nn.Module):
     def forward(self, input: torch.Tensor):
         # wrap the input tensor in a GeometricTensor
         # (associate it with the input type)
+        start = torch.cuda.Event(enable_timing=True)
+        end = torch.cuda.Event(enable_timing=True)
+        start.record()
+
         x = nn.GeometricTensor(input, self.input_type)
 
         # apply each equivariant block
@@ -139,6 +156,10 @@ class C8SteerableCNN(torch.nn.Module):
         # pool over the spatial dimensions
         x = self.pool3(x)
 
+        end.record()
+        torch.cuda.synchronize()
+        print('-----', start.elapsed_time(end))
+
         # pool over the group
         x = self.gpool(x)
 
@@ -157,9 +178,9 @@ class MnistRotDataset(Dataset):
         assert mode in ['train', 'test']
 
         if mode == "train":
-            file = "mnist_rotation_new/mnist_all_rotation_normalized_float_train_valid.amat"
+            file = DATA_FOLDER + "mnist_rotation_new/mnist_all_rotation_normalized_float_train_valid.amat"
         else:
-            file = "mnist_rotation_new/mnist_all_rotation_normalized_float_test.amat"
+            file = DATA_FOLDER + "mnist_rotation_new/mnist_all_rotation_normalized_float_test.amat"
 
         self.transform = transform
 
