@@ -4,8 +4,8 @@ import torch
 from torch.nn import functional as F
 
 def check_validity(elem: Union[None, Tuple[int, int]],
-        irrep: Union[None, Tuple[int, int]],
-        group: Union[None, Tuple[int, int]]):
+        irrep: Union[None, Tuple[int, int]] = None,
+        group: Union[None, Tuple[int, int]] = None):
     assert group[0] in [1, 2] and group[1] >= 1
     assert not elem or all(e < g for (e, g) in zip(elem, group)),\
             f'irrep = {irrep}, group = {group}'
