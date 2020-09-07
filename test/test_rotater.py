@@ -15,8 +15,8 @@ patch = torch.arange(25).float().reshape(size)
 
 in_patch = patch[None, ...].expand(npatches, -1, -1)
 
-rotater0 = FilterRotater(group, size, True)
-rotater1 = FilterRotater(group, size, False)
+rotater0 = FilterRotater(group, size, False, 'bmm')
+rotater1 = FilterRotater(group, size, False, 'grid_sample')
 
 out_patch0 = rotater0.forward(in_patch)
 out_patch1 = rotater1.forward(in_patch)

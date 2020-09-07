@@ -42,5 +42,6 @@ class ReprTest(unittest.TestCase):
 
 t = ReprTest()
 t.setUp()
-t.test_comp_dctmat()
+# t.test_comp_dctmat()
+t.test_regular_mat()
 

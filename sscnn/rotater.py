@@ -10,13 +10,13 @@ from sscnn.utils import *
 EPS = 1e-5
 LARGE = 1e5
 
-class MatMulRemapper(nn.Module):
+class BMMRemapper(nn.Module):
     def __init__(self, grid):
         '''
         Args:
             grid: N x H x W x 2
         '''
-        super(MatMulRemapper, self).__init__()
+        super(BMMRemapper, self).__init__()
         interp_mat = self.comp_interp_mat(grid)
         interp_mat_t = interp_mat.transpose(1, 2)
 
@@ -89,6 +89,7 @@ class GridSampleRemapper(nn.Module):
         super(GridSampleRemapper, self).__init__()
         disk_mask = (nlized_grid.norm(dim=-1) > 1).unsqueeze(-1)
         nlized_grid = nlized_grid.masked_fill(disk_mask, LARGE)
+        nlized_grid = nlized_grid.flatten(0, 1)
 
         self.register_buffer('nlized_grid', nlized_grid)
     def forward(self, x):
@@ -100,7 +101,7 @@ class GridSampleRemapper(nn.Module):
         return x
 
 class FilterRotater(nn.Module):
-    def __init__(self, group: Tuple[int, int], size: Tuple[int, int], reuse=True):
+    def __init__(self, group: Tuple[int, int], size: Tuple[int, int], reuse=True, method='bmm'):
         super(FilterRotater, self).__init__()
         check_validity(group=group)
         self.group = group
@@ -114,19 +115,21 @@ class FilterRotater(nn.Module):
         aff[0, :, 1, 1] = cos_na
         if group[0] > 1:
             aff[1, :, 0, 0] = cos_na
-            aff[1, :, 0, 1] = sin_na
-            aff[1, :, 1, 0] = sin_na
+            aff[1, :, 0, 1] = -sin_na
+            aff[1, :, 1, 0] = -sin_na
             aff[1, :, 1, 1] = -cos_na
 
         order = group[0] * group[1]
         H, W = size
         # order x H x W
         ngrid = F.affine_grid(aff.flatten(0, 1), (order, 1) + size, False)
+        self.ngrid = ngrid
         ngrid = ngrid.view(group + size + (-1,))
 
         grid = ngrid.flip(-1)
         grid = grid * grid.new_tensor([H / 2, W / 2])
         grid += grid.new_tensor([(H - 1) / 2, (W - 1) / 2])
+        self.grid = grid
 
         if reuse:
             self.divisor = (
@@ -136,8 +139,12 @@ class FilterRotater(nn.Module):
         else:
             self.divisor = (1, 1)
         portion = tuple(g // d for g, d in zip(group, self.divisor))
-        self.mm_remapper = MatMulRemapper(grid[:portion[0], :portion[1]].flatten(0, 1))
-        # self.gs_remapper = GridSampleRemapper(ngrid[:portion])
+        if method == 'bmm':
+            self.remapper = BMMRemapper(grid[:portion[0], :portion[1]].flatten(0, 1))
+        elif method == 'grid_sample':
+            self.remapper = GridSampleRemapper(ngrid[:portion[0], :portion[1]])
+        else:
+            raise NotImplementedError
 
     def forward(self, x):
         '''
@@ -148,7 +155,7 @@ class FilterRotater(nn.Module):
         # return self.gs_remapper.forward(x)
         portion = tuple(g // d for g, d in zip(self.group, self.divisor))
         x = x.unsqueeze(0).unsqueeze(0).expand(portion + (-1, -1, -1))
-        part = self.mm_remapper.forward(x.flatten(0, 1))
+        part = self.remapper.forward(x.flatten(0, 1))
         # group[0] x group[1] x channels x H x W
         part = part.view(portion + part.shape[1:])
         if self.divisor[1] == 4:
