@@ -95,7 +95,7 @@ class GridSampleRemapper(nn.Module):
 
 class FilterRotater(nn.Module):
     def __init__(self, group: Tuple[int, int], size: Tuple[int, int]):
-        super(FilterTransformer, self).__init__()
+        super(FilterRotater, self).__init__()
         check_validity(group=group)
         aff = torch.zeros(group + (2, 3)) # reflection x order x 2 x 3
         angles = torch.arange(group[1]) * math.pi * 2 / group[1]

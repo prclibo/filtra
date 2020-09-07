@@ -15,8 +15,8 @@ patch = torch.arange(25).float().reshape(size)
 
 in_patch = patch[None, None, ...].expand(group[0] * group[1], npatches, -1, -1)
 
-tformer = FilterTransformer(group, size)
+rotater = FilterRotater(group, size)
 
-out_patch = tformer.forward(in_patch)
+out_patch = rotater.forward(in_patch)
 import pdb; pdb.set_trace()
 
