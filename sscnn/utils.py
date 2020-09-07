@@ -42,23 +42,14 @@ def tform_mat(elem: Tuple[int, int], irrep: Tuple[int, int], group: Tuple[int, i
 
 def irrep_mat(elem: Tuple[int, int], irrep: Tuple[int, int], group: Tuple[int, int]):
     check_validity(elem, irrep, group)
-    # if irrep[1] in [0, group[1] / 2]:
-    #     irrep_mat_s = torch.tensor(((-1) ** irrep[0]) ** elem[0])
-    #     irrep_mat_r = torch.tensor(((-1)) ** irrep[1])
-    #     return (irrep_mat_s * irrep_mat_r).reshape(1, 1)
-    if irrep[1] == 0:
-        return torch.tensor((((-1) ** irrep[0]) ** elem[0])).reshape(1, 1)
-    elif irrep[1] == group[1] / 2:
-        return torch.tensor(((-1) ** elem[1]) * (((-1) ** irrep[0]) ** elem[0])).reshape(1, 1)
-    else:
-        delta = math.pi * 2 / group[1]
-        irrep_mat_r = rot_mat(irrep[1] * elem[1] * delta)
-        irrep_mat_s = torch.eye(2) * ((-1)**irrep[0])
-        # XXX Why???
-        irrep_mat_s = ref_mat(elem[0]) * ((-1)**irrep[0])**elem[0]
-        # irrep_mat_s = torch.eye(2) * ((-1)**irrep[0])
-        # irrep_mat_s = ref_mat(irrep[0] * elem[0])
-        return irrep_mat_r @ irrep_mat_s
+    delta = math.pi * 2 / group[1]
+    irrep_mat_r = rot_mat(irrep[1] * elem[1] * delta)
+    irrep_mat_s = torch.eye(2) * ((-1)**irrep[0])
+    # XXX Why???
+    irrep_mat_s = ref_mat(elem[0]) * ((-1)**irrep[0])**elem[0]
+    # irrep_mat_s = torch.eye(2) * ((-1)**irrep[0])
+    # irrep_mat_s = ref_mat(irrep[0] * elem[0])
+    return irrep_mat_r @ irrep_mat_s
 
 def regular_mat(elem: Tuple[int, int], group: Tuple[int, int]):
     order = group[0] * group[1]

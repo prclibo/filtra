@@ -65,8 +65,8 @@ def comp_regular_rel_err(group, y1, y2):
     assert y1.shape == y2.shape
     C = y1.shape[1]
     order = group[0] * group[1]
-    y1 = unflatten(y1, 1, (C // order, order))
-    y2 = unflatten(y2, 1, (C // order, order))
+    y1 = y1.view(y1.shape[:1] + (C // order, order) + y1.shape[2:])
+    y2 = y2.view(y2.shape[:1] + (C // order, order) + y2.shape[2:])
     diff = (y1 - y2).norm(None, 2)
     leng1 = y1.norm(None, 2)
     leng2 = y2.norm(None, 2)
@@ -215,15 +215,14 @@ class ConvTest(unittest.TestCase):
 
     def test_irrep_to_regular_Cn(self):
         group = (1, self.rotation)
-        in_irreps = [(0, 0), (0, 1), (0, 2)]
+        in_irreps = [(0, 0)]#[(0, 0), (0, 1), (0, 2)]
         out_mult = 2
         conv = IrrepToRegular(group, in_irreps, out_mult, self.kernel_size, bias=False)
         nn.init.uniform_(conv.weight)
-        in_dim = len(comp_irreps_expan_inds(group, torch.Tensor(in_irreps))[0])
-        for i in range(self.rotation):
+        for i in [2]: # range(self.rotation):
             elem = (0, i)
 
-            x0 = torch.rand(self.batch_size, in_dim, self.height, self.width)
+            x0 = torch.rand(self.batch_size, 2 * len(in_irreps), self.height, self.width)
             y0 = conv.forward(x0)
             x1 = rotate_irreps(x0, elem, in_irreps, group)
             y1 = conv.forward(x1)
@@ -231,6 +230,7 @@ class ConvTest(unittest.TestCase):
 
             rel_err_ss = comp_regular_rel_err(group, y1, y1_)
             print(elem, 'max_rel_err =', rel_err_ss.detach())
+            import pdb ;pdb.set_trace()
 
     def test_regular_to_irrep_Dn(self):
         in_mult = 1
@@ -308,8 +308,8 @@ T = ConvTest()
 T.setUp()
 # T.test_regular_to_irrep_reflection()
 # T.test_irrep_to_regular_reflection()
-T.test_regular_to_irrep_Cn()
-# T.test_irrep_to_regular_Cn()
+# T.test_regular_to_irrep_Cn()
+T.test_irrep_to_regular_Cn()
 # T.test_regular_to_regular_Cn()
 # T.test_regular_to_irrep_Dn()
 # T.test_regular_to_regular_Dn()
