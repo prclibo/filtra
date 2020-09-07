@@ -8,6 +8,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from .utils import *
+from .rotater import *
 
 def unflatten(x, old_dim: int, new_dims: Tuple[int]):
     old_shape = x.shape
@@ -114,27 +115,22 @@ class RegularToIrrep(nn.Conv2d):
         self.register_buffer('expan_coeffs', expan_coeffs)
         self.register_buffer('in_inds', in_inds)
 
-        H, W = kernel_size, kernel_size
-        map_i = torch.arange(H * W).to(self.weight.device).unsqueeze(0).expand(self.group[0] * self.group[1], -1).flatten()
-        self.register_buffer('map_i', map_i)
-
-        steered_weight = self.weight.new_zeros(out_channels * in_channels, group[0] * group[1], H, W)
-        self.register_buffer('steered_weight', steered_weight)
         self.filters = None
+        self.rotater = FilterRotater(group, self.kernel_size, False)
 
         # TODO XXX Deal with bias, refering to e2cnn
 
     def expand_filters(self, weight):
         # len(out_irreps) x in_mult x h x w => [sides x order] x [len(out_irreps) x in_mult] x h x w
         _, _, H, W = weight.shape
+        order = self.group[0] * self.group[1]
         # weight = weight.flatten(0, 1).unsqueeze(0)
-        weight = weight.view(1, -1, H, W)
-        weight = weight.expand(self.group[0] * self.group[1], -1, -1, -1)
-        # filter shape => [sides x order] x [len(out_irreps) x in_mult] x h x w
-        steered = F.grid_sample(weight, self.grid, align_corners=False, padding_mode='zeros', mode='nearest') # mode='bilinear')
+        weight = weight.view(-1, H, W)
+        # filter shape => sides x order x [len(out_irreps) x in_mult] x h x w
+        steered = self.rotater.forward(weight)
+        # steered = F.grid_sample(weight, self.grid, align_corners=False, padding_mode='zeros', mode='nearest') # mode='bilinear')
         # => sides x order x len(out_irreps) x in_mult x h x w
-        steered = unflatten(steered, 1, (self.out_channels, self.in_channels))
-        steered = unflatten(steered, 0, (self.group[0], self.group[1]))
+        steered = unflatten(steered, 2, (self.out_channels, self.in_channels))
         # => sides x order (steered) x out_dims x in_mult x h x w
         # steered = self.test_reorder(weight)
         filters = irreps_expand(self.in_inds, self.expan_coeffs, steered)

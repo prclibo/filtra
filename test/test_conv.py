@@ -171,7 +171,7 @@ class ConvTest(unittest.TestCase):
         y0_r2 = r2_conv.forward(e2cnn.nn.GeometricTensor(x0, in_type)).tensor
         # import pdb; pdb.set_trace()
 
-        for i in [1]: # range(self.rotation):
+        for i in range(self.rotation):
             elem = (0, i)
 
             x1 = rotate_regulars(x0, elem, group)

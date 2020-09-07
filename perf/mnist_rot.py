@@ -18,6 +18,7 @@ import numpy as np
 from PIL import Image
 
 DATA_FOLDER = '/home/li/data/'
+DATA_FOLDER = '/data/'
 APPROACH = 'e2cnn'
 # APPROACH = 'torch'
 

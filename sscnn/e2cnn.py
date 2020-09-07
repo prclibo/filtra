@@ -63,7 +63,7 @@ class SSConv(EquivariantModule):
         
         end.record()
         torch.cuda.synchronize()
-        print('    ', start.elapsed_time(end))
+        # print('    ', start.elapsed_time(end))
 
         return e2cnn.nn.GeometricTensor(x, self.out_type)
 

@@ -23,15 +23,14 @@ class MatMulRemapper(nn.Module):
         self.register_buffer('grid', grid)
         self.register_buffer('interp_mat', interp_mat)
         self.register_buffer('interp_mat_t', interp_mat_t)
-        pass
 
     def comp_interp_mat(self, grid):
         N, H, W, _ = grid.shape
-        # N x H x W
-        disk_mask = (grid[:, :, :, 0] >= 0 - EPS).all(0) &\
-                    (grid[:, :, :, 0] <= H - 1 + EPS).all(0) &\
-                    (grid[:, :, :, 1] >= 0 - EPS).all(0) &\
-                    (grid[:, :, :, 1] <= W - 1 + EPS).all(0)
+        # N x H x W, corresponding -1 < nlized_grid < 1
+        disk_mask = (grid[:, :, :, 0] >= 0 - 0.5).all(0) &\
+                    (grid[:, :, :, 0] <= H - 1 + 0.5).all(0) &\
+                    (grid[:, :, :, 1] >= 0 - 0.5).all(0) &\
+                    (grid[:, :, :, 1] <= W - 1 + 0.5).all(0)
         disk_mask = disk_mask.flatten()
         num_valid = disk_mask.sum()
         
@@ -44,6 +43,12 @@ class MatMulRemapper(nn.Module):
         # N x num_valid x 4 x 2
         corners = grid.floor().long().view(N, -1, 1, 2).expand(-1, -1, 4, -1)
         corners = corners + torch.LongTensor([[0, 0], [0, 1], [1, 0], [1, 1]])
+
+        oob_mask = (corners[:, :, :, 0] < 0) |\
+                   (corners[:, :, :, 0] > H - 1) |\
+                   (corners[:, :, :, 1] < 0) |\
+                   (corners[:, :, :, 1] > W - 1)
+
         # N x num_valid x 4
         corners = corners[:, :, :, 0] * W + corners[:, :, :, 1]
         # N x num_valid x 2
@@ -55,6 +60,8 @@ class MatMulRemapper(nn.Module):
         coeffs = torch.bmm(frac0.view(-1, 2, 1), frac1.view(-1, 1, 2))
         # N x num_valid x 4
         coeffs = coeffs.view(N, num_valid, 4)
+        # Equivalent to zero padding
+        coeffs[oob_mask] = 0
 
         mat_val  = grid.new_zeros(N, num_valid, H * W)
         mat_val.scatter_(2, corners, coeffs)
@@ -73,7 +80,6 @@ class MatMulRemapper(nn.Module):
         # plt.show()
         groups, channels, H, W = x.shape
         x = x.reshape(groups, channels, -1)
-        x0 = x
         x = torch.bmm(x, self.interp_mat_t)
         x = x.view(groups, channels, H, W)
         return x
@@ -94,9 +100,11 @@ class GridSampleRemapper(nn.Module):
         return x
 
 class FilterRotater(nn.Module):
-    def __init__(self, group: Tuple[int, int], size: Tuple[int, int]):
+    def __init__(self, group: Tuple[int, int], size: Tuple[int, int], reuse=True):
         super(FilterRotater, self).__init__()
         check_validity(group=group)
+        self.group = group
+
         aff = torch.zeros(group + (2, 3)) # reflection x order x 2 x 3
         angles = torch.arange(group[1]) * math.pi * 2 / group[1]
         cos_na, sin_na = angles.cos(), angles.sin()
@@ -112,15 +120,45 @@ class FilterRotater(nn.Module):
 
         order = group[0] * group[1]
         H, W = size
+        # order x H x W
         ngrid = F.affine_grid(aff.flatten(0, 1), (order, 1) + size, False)
+        ngrid = ngrid.view(group + size + (-1,))
 
         grid = ngrid.flip(-1)
         grid = grid * grid.new_tensor([H / 2, W / 2])
         grid += grid.new_tensor([(H - 1) / 2, (W - 1) / 2])
 
-        self.mm_remapper = MatMulRemapper(grid)
-        self.gs_remapper = GridSampleRemapper(ngrid)
+        if reuse:
+            self.divisor = (
+                2 if group[0] % 2 == 0 else 1,
+                4 if group[1] % 4 == 0 else 2 if group[1] % 2 == 0 else 1
+            )
+        else:
+            self.divisor = (1, 1)
+        portion = tuple(g // d for g, d in zip(group, self.divisor))
+        self.mm_remapper = MatMulRemapper(grid[:portion[0], :portion[1]].flatten(0, 1))
+        # self.gs_remapper = GridSampleRemapper(ngrid[:portion])
 
     def forward(self, x):
-        return self.mm_remapper.forward(x)
+        '''
+        Args:
+            x: channels x H x W
+        '''
+        # return self.mm_remapper.forward(x)
+        # return self.gs_remapper.forward(x)
+        portion = tuple(g // d for g, d in zip(self.group, self.divisor))
+        x = x.unsqueeze(0).unsqueeze(0).expand(portion + (-1, -1, -1))
+        part = self.mm_remapper.forward(x.flatten(0, 1))
+        # group[0] x group[1] x channels x H x W
+        part = part.view(portion + part.shape[1:])
+        if self.divisor[1] == 4:
+            x = torch.cat([part, part.rot90(1, [3, 4]), part.rot90(2, [3, 4]), part.rot90(3, [3, 4])], 1)
+        elif self.divisor[1] == 2:
+            x = torch.cat([part, part.rot90(2, [3, 4])], 1)
+        else:
+            x = part
+        if self.divisor[0] == 2:
+            x = torch.cat([x, x.flip(-2)], 0)
+
+        return x
 

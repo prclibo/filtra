@@ -17,7 +17,7 @@ import numpy as np
 
 from PIL import Image
 
-DATA_FOLDER='/home/li/data/'
+DATA_FOLDER='/data/'
 
 conv_func = nn.R2Conv
 conv_func = sscnn.e2cnn.SSConv
@@ -237,6 +237,11 @@ optimizer = torch.optim.Adam(model.parameters(), lr=5e-5, weight_decay=1e-5)
 
 for epoch in range(31):
     model.train()
+
+    start = torch.cuda.Event(enable_timing=True)
+    end = torch.cuda.Event(enable_timing=True)
+    start.record()
+
     for i, (x, t) in enumerate(train_loader):
         
         optimizer.zero_grad()
@@ -251,6 +256,9 @@ for epoch in range(31):
         loss.backward()
 
         optimizer.step()
+    end.record()
+    torch.cuda.synchronize()
+    print('Epoch', start.elapsed_time(end))
     
     if epoch % 10 == 0:
         total = 0

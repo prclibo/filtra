@@ -13,10 +13,13 @@ size = (5, 5)
 patch = torch.from_numpy(np.load('test/patch.npy'))[14:19, 14:19]
 patch = torch.arange(25).float().reshape(size)
 
-in_patch = patch[None, None, ...].expand(group[0] * group[1], npatches, -1, -1)
+in_patch = patch[None, ...].expand(npatches, -1, -1)
 
-rotater = FilterRotater(group, size)
+rotater0 = FilterRotater(group, size, True)
+rotater1 = FilterRotater(group, size, False)
 
-out_patch = rotater.forward(in_patch)
+out_patch0 = rotater0.forward(in_patch)
+out_patch1 = rotater1.forward(in_patch)
+
 import pdb; pdb.set_trace()
 
