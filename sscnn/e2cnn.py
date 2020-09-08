@@ -124,3 +124,35 @@ class SSConv(EquivariantModule):
 
         return b, self.out_type.size, ho, wo
         
+class PlainConv(EquivariantModule):
+    def __init__(self,
+        in_type: e2cnn.nn.FieldType,
+        out_type: e2cnn.nn.FieldType,
+        kernel_size: int,
+        padding: int = 0,
+        stride: int = 1,
+        dilation: int = 1,
+        groups: int = 1,
+        bias: bool = True,
+    ):
+        super(PlainConv, self).__init__()
+        self.in_type = in_type
+        self.out_type = out_type
+        self.conv = torch.nn.Conv2d(in_type.size, out_type.size, kernel_size,
+            stride=stride, padding=padding, dilation=dilation, groups=groups,
+            bias=bias)
+
+    def forward(self, x):
+        x = self.conv.forward(x.tensor)
+        return d2cnn.nn.GeometricTensor(x, self.out_type)
+
+    def evaluate_output_shape(self, input_shape: Tuple[int, int, int, int]) -> Tuple[int, int, int, int]:
+        assert len(input_shape) == 4
+        assert input_shape[1] == self.in_type.size
+    
+        b, c, hi, wi = input_shape
+        
+        ho = math.floor((hi + 2 * self.padding - self.dilation * (self.kernel_size - 1) - 1) / self.stride + 1)
+        wo = math.floor((wi + 2 * self.padding - self.dilation * (self.kernel_size - 1) - 1) / self.stride + 1)
+
+        return b, self.out_type.size, ho, wo
