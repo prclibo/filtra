@@ -19,8 +19,23 @@ from PIL import Image
 
 DATA_FOLDER='/data/'
 
+def plain_conv(
+    in_type: e2cnn.nn.FieldType,
+    out_type: e2cnn.nn.FieldType,
+    kernel_size: int,
+    padding: int = 0,
+    stride: int = 1,
+    dilation: int = 1,
+    groups: int = 1,
+    bias: bool = True,
+):
+    return torch.nn.Conv2d(in_type.size, out_type.size, kernel_size,
+            stride=stride, padding=padding, dilation=dilation, groups=groups,
+            bias=bias)
+
 conv_func = nn.R2Conv
 conv_func = sscnn.e2cnn.SSConv
+conv_func = plain_conv
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
