@@ -75,6 +75,13 @@ class IrrepToRegular(nn.Conv2d):
         return filters.view(order * C_o, 2 * C_i, H, W)
 
     def forward(self, x):
+        '''
+        Args:
+            x: N x [2 x len(out_irreps)] x H x W
+        Return:
+[           x: N x [group[0] x group[1] x out_mult] x H x W
+        '''
+        # [group[0] x group[1] x out_mult] x [2 x len(out_irreps)] x H x W
         self.filters = self.expand_filters(self.weight)
         x = F.conv2d(x, self.filters, self.bias, self.stride,
                 self.padding, self.dilation, self.groups)

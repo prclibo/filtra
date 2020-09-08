@@ -7,19 +7,38 @@ from e2cnn.nn.modules.equivariant_module import EquivariantModule
 import sscnn.conv
 import time
 
-def convert_field_type(type_):
-    if type_.representations[0].name.startswith('irrep'):
-        assert all(_.name.startswith('irrep') for _ in type_.representations)
+def convert_field_type(field):
+    if field.representations[0].name.startswith('irrep'):
+        assert all(_.name.startswith('irrep') for _ in field.representations)
         converted = [(
             rep.attributes.pop('flip_frequency', 0),
             rep.attributes.pop('frequency', 0)
-        ) for rep in type_.representations]
-    elif type_.representations[0].name.startswith('regular'):
-        assert all(_.name.startswith('regular') for _ in type_.representations)
-        converted = len(type_.representations)
+        ) for rep in field.representations]
+        mult = len(converted)
+        dim = 2
+    elif field.representations[0].name.startswith('regular'):
+        assert all(_.name.startswith('regular') for _ in field.representations)
+        converted = len(field.representations)
+        mult = converted
+        dim = field.representations[0].group.order()
     else:
         raise ValueError
-    return converted
+    return converted, mult, dim
+
+def type_to_selection(type_, group):
+    if type(type_) == int:
+        sel = torch.arange(type_ * group[0] * group[1])
+        length = type_ * group[0] * group[1]
+    elif type(type_) == list:
+        sel = []
+        for i, irrep in enumerate(type_):
+            sel.append(2 * i)
+            if irrep[1] in [0, group[1] / 2]:
+                sel.append(2 * i + 1)
+        length = len(type_) * 2
+    else:
+        raise ValueError
+    return sel
 
 TYPE_TO_CONV = {
     (int, list): sscnn.conv.RegularToIrrep,
@@ -47,23 +66,47 @@ class SSConv(EquivariantModule):
 
         self.in_type = in_type
         self.out_type = out_type
-        in_type = convert_field_type(in_type)
-        out_type = convert_field_type(out_type)
+        in_type, self.in_mult, self.in_inner_dim = convert_field_type(in_type)
+        out_type, self.out_mult, self.out_inner_dim = convert_field_type(out_type)
+
+        in_sel = type_to_selection(in_type, group)
+        out_sel = type_to_selection(out_type, group)
+        self.register_buffer('in_sel', in_sel)
+        self.register_buffer('out_sel', out_sel)
 
         conv_type = TYPE_TO_CONV[(type(in_type), type(out_type))]
         self.conv = conv_type(group, in_type, out_type,
                 kernel_size=kernel_size, padding=padding,
                 stride=stride, dilation=dilation, groups=groups, bias=bias)
+
     def forward(self, x):
+        '''
+        Args:
+            x: N x [in_mult x group[0] x group[1]] x H x W or N x [in_dim] x H x W
+        '''
+
+        N, C, H, W = x.shape
+        order = self.group[0] * self.group[1]
+
+        x = x.tensor
+        x_ = x.new_zeros(N, self.in_mult * self.in_inner_dim, H, W)
+        x_.index_copy_(1, self.in_sel, x)
+        x_ = x_.view(N, self.in_mult, self.in_inner_dim, H, W)
+        x_ = x_.transpose(1, 2).view(N, -1, H, W)
+
         start = torch.cuda.Event(enable_timing=True)
         end = torch.cuda.Event(enable_timing=True)
         start.record()
 
-        x = self.conv.forward(x.tensor)
+        x_ = self.conv.forward(x_)
         
         end.record()
         torch.cuda.synchronize()
         # print('    ', start.elapsed_time(end))
+
+        x_ = x_.view(N, self.out_inner_dim, self.out_mult, H, W)
+        x_ = x_.transpose(1, 2).view(N, -1, H, W)
+        x = x_.index_select(1, self.out_sel)
 
         return e2cnn.nn.GeometricTensor(x, self.out_type)
 
