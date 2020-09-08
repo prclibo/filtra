@@ -1,8 +1,4 @@
-import sys
-sys.path.append('/mnt/workspace/sscnn/')
-
 import torch
-import torch.nn.functional as F
 
 from e2cnn import gspaces
 from e2cnn import nn
@@ -10,27 +6,25 @@ from e2cnn import nn
 import e2cnn
 import sscnn.e2cnn
 
-import numpy as np
-
-from mnist_rot_dataset import RotatedMNISTDataset 
+from mnist_rot_dataset import MnistRotDataset, RotatedMNISTDataset
 from models import C8SteerableCNN
-
-import matplotlib.pyplot as plt
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 conv_func = nn.R2Conv
 conv_func = sscnn.e2cnn.SSConv
-conv_func = sscnn.e2cnn.PlainConv
-model = C8SteerableCNN(out_channels=2, conv_func=conv_func).to(device)
+# conv_func = sscnn.e2cnn.PlainConv
+model = C8SteerableCNN(out_channels=10, conv_func=conv_func).to(device)
 
-mnist_train = RotatedMNISTDataset('.', train=True)
+mnist_train = MnistRotDataset(mode='train')
+# mnist_train = RotatedMNISTDataset('.', train=True)
 train_loader = torch.utils.data.DataLoader(mnist_train, batch_size=64)
 
-mnist_test = RotatedMNISTDataset('.', train=False)
+mnist_test = MnistRotDataset(mode='test')
+# mnist_test = RotatedMNISTDataset('.', train=False)
 test_loader = torch.utils.data.DataLoader(mnist_test, batch_size=64)
 
-loss_function = torch.nn.MSELoss()
+loss_function = torch.nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=5e-5, weight_decay=1e-5)
 
 for epoch in range(31):
@@ -40,39 +34,38 @@ for epoch in range(31):
     end = torch.cuda.Event(enable_timing=True)
     start.record()
 
-    for i, (x, l, v) in enumerate(train_loader):
+    for i, (x, t, v) in enumerate(train_loader):
         
         optimizer.zero_grad()
 
         x = x.to(device)
-        v = v.to(device)
+        t = t.to(device)
 
         y = model(x)
-        y = F.normalize(y, dim=1)
+        # import pdb; pdb.set_trace()
 
-        loss = loss_function(y, v)
+        loss = loss_function(y, t)
 
         loss.backward()
 
         optimizer.step()
-
     end.record()
     torch.cuda.synchronize()
     print('Epoch', start.elapsed_time(end))
     
     if epoch % 10 == 0:
         total = 0
-        error = 0
+        correct = 0
         with torch.no_grad():
             model.eval()
-            for i, (x, l, v) in enumerate(test_loader):
+            for i, (x, t, v) in enumerate(test_loader):
 
                 x = x.to(device)
-                v = v.to(device)
-
+                t = t.to(device)
+                
                 y = model(x)
-                y = F.normalize(y, dim=1)
 
-                total += l.shape[0]
-                error = (y - v).square().sum() + error
-        print(f"epoch {epoch} | test accuracy: {error/total}")
+                _, prediction = torch.max(y.data, 1)
+                total += t.shape[0]
+                correct += (prediction == t).sum().item()
+        print(f"epoch {epoch} | test accuracy: {correct/total*100.}")

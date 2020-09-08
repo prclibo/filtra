@@ -1,8 +1,43 @@
 import numpy as np
 import torch
+import torchvision
+from torch.utils.data import Dataset
 from sscnn.utils import *
 
 DATA_FOLDER='/data/'
+
+class RotatedMNISTDataset(torchvision.datasets.MNIST):
+    def __init__(self, root, train):
+        super(RotatedMNISTDataset, self).__init__(root, train, download=True)
+        print(self.data.shape, self.targets.shape)
+
+    def _rotate_data(self, angle, image):
+        aff = torch.zeros(1, 2, 3)
+        aff[0, :, :2] = rot_mat(angle)
+        grid = F.affine_grid(aff, (1, 1) + image.shape, False)
+
+        rotated = F.grid_sample(image[None, None, ...], grid, align_corners=False,
+                padding_mode='zeros', mode='bilinear') 
+
+        return rotated[0]
+
+    def __getitem__(self, index):
+        image, label = self.data[index].float(), int(self.targets[index])
+
+        angle = np.random.uniform(2 * np.pi)
+        # image = torch.from_numpy(image)# .transpose(0, 1)
+        rotated = self._rotate_data(angle, image)
+        orient = torch.Tensor([np.cos(angle), np.sin(angle)])
+
+        # import matplotlib.pyplot as plt
+        # plt.imshow(torch.cat([image, rotated[0]]).cpu())
+        # plt.show()
+        # print(orient)
+
+        # import pdb; pdb.set_trace()
+
+        return rotated, label, orient
+
 
 class MnistRotDataset(Dataset):
 
@@ -21,25 +56,33 @@ class MnistRotDataset(Dataset):
         self.images = data[:, :-1].reshape(-1, 28, 28).astype(np.float32)
         self.labels = data[:, -1].astype(np.int64)
         self.num_samples = len(self.labels)
+        print(self.images.shape)
 
     def _rotate_data(self, angle, image):
         aff = torch.zeros(1, 2, 3)
         aff[0, :, :2] = rot_mat(angle)
         grid = F.affine_grid(aff, (1, 1) + image.shape, False)
 
-        image = F.grid_sample(image[None, None, ...], align_corners=False,
+        rotated = F.grid_sample(image[None, None, ...], grid, align_corners=False,
                 padding_mode='zeros', mode='bilinear') 
 
-        return image
+        return rotated[0]
 
     def __getitem__(self, index):
         image, label = self.images[index], self.labels[index]
 
         angle = np.random.uniform(2 * np.pi)
-        image = self._rotate_data(angle, image)
+        image = torch.from_numpy(image).transpose(0, 1)
+        rotated = self._rotate_data(angle, image)
         orient = torch.Tensor([np.cos(angle), np.sin(angle)])
+        import matplotlib.pyplot as plt
+        plt.imshow(torch.cat([image, rotated[0]]).cpu())
+        plt.show()
+        print(orient)
 
-        return image, orient, label
+        import pdb; pdb.set_trace()
+
+        return rotated , label, orient
 
     def __len__(self):
         return len(self.labels)

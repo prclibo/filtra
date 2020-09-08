@@ -26,8 +26,8 @@ class C8SteerableCNN(torch.nn.Module):
         # we choose 16 feature fields, each transforming under the regular representation of C8
         out_type = nn.FieldType(self.r2_act, 24*[self.r2_act.regular_repr])
         self.block1 = nn.SequentialModule(
-            nn.MaskModule(in_type, 29, margin=1),
-            conv_func(in_type, out_type, kernel_size=7, padding=1, bias=False),
+            # nn.MaskModule(in_type, 29, margin=1),
+            conv_func(in_type, out_type, kernel_size=5, padding=1, bias=False),
             # nn.InnerBatchNorm(out_type),
             nn.ReLU(out_type, inplace=True)
         )
@@ -95,6 +95,7 @@ class C8SteerableCNN(torch.nn.Module):
         self.pool3 = nn.PointwiseAvgPoolAntialiased(out_type, sigma=0.66, stride=1, padding=0)
 
         self.gpool = nn.GroupPooling(out_type)
+        # self.gpool = nn.PointwiseAdaptiveMaxPool(out_type, (1, 1))
 
         # number of output channels
         c = self.gpool.out_type.size
@@ -104,7 +105,7 @@ class C8SteerableCNN(torch.nn.Module):
             torch.nn.Linear(c, 64),
             torch.nn.BatchNorm1d(64),
             torch.nn.ELU(inplace=True),
-            torch.nn.Linear(64, n_classes),
+            torch.nn.Linear(64, out_channels),
         )
 
     def forward(self, input: torch.Tensor):
