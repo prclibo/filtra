@@ -144,7 +144,7 @@ class PlainConv(EquivariantModule):
 
     def forward(self, x):
         x = self.conv.forward(x.tensor)
-        return d2cnn.nn.GeometricTensor(x, self.out_type)
+        return e2cnn.nn.GeometricTensor(x, self.out_type)
 
     def evaluate_output_shape(self, input_shape: Tuple[int, int, int, int]) -> Tuple[int, int, int, int]:
         assert len(input_shape) == 4

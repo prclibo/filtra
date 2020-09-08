@@ -201,6 +201,10 @@ class MnistRotDataset(Dataset):
     def __len__(self):
         return len(self.labels)
 
+
+
+
+
 # images are padded to have shape 29x29.
 # this allows to use odd-size filters with stride 2 when downsampling a feature map in the model
 pad = Pad((0, 0, 1, 1), fill=0)
