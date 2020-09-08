@@ -1,3 +1,8 @@
+import numpy as np
+import torch
+from sscnn.utils import *
+
+DATA_FOLDER='/data/'
 
 class MnistRotDataset(Dataset):
 
@@ -18,17 +23,23 @@ class MnistRotDataset(Dataset):
         self.num_samples = len(self.labels)
 
     def _rotate_data(self, angle, image):
+        aff = torch.zeros(1, 2, 3)
+        aff[0, :, :2] = rot_mat(angle)
+        grid = F.affine_grid(aff, (1, 1) + image.shape, False)
 
+        image = F.grid_sample(image[None, None, ...], align_corners=False,
+                padding_mode='zeros', mode='bilinear') 
+
+        return image
 
     def __getitem__(self, index):
         image, label = self.images[index], self.labels[index]
 
+        angle = np.random.uniform(2 * np.pi)
+        image = self._rotate_data(angle, image)
+        orient = torch.Tensor([np.cos(angle), np.sin(angle)])
 
-
-        image = Image.fromarray(image)
-        if self.transform is not None:
-            image = self.transform(image)
-        return image, label
+        return image, orient, label
 
     def __len__(self):
         return len(self.labels)
