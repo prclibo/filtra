@@ -20,7 +20,7 @@ from PIL import Image
 DATA_FOLDER='/data/'
 
 conv_func = nn.R2Conv
-conv_func = sscnn.e2cnn.SSConv
+# conv_func = sscnn.e2cnn.SSConv
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -158,7 +158,7 @@ class C8SteerableCNN(torch.nn.Module):
 
         end.record()
         torch.cuda.synchronize()
-        print('-----', start.elapsed_time(end))
+        # print('-----', start.elapsed_time(end))
 
         # pool over the group
         x = self.gpool(x)

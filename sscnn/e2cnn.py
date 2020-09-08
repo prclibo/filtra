@@ -33,8 +33,9 @@ def type_to_selection(type_, group):
         sel = []
         for i, irrep in enumerate(type_):
             sel.append(2 * i)
-            if irrep[1] in [0, group[1] / 2]:
+            if not irrep[1] in [0, group[1] / 2]:
                 sel.append(2 * i + 1)
+        sel = torch.tensor(sel)
         length = len(type_) * 2
     else:
         raise ValueError
@@ -64,6 +65,7 @@ class SSConv(EquivariantModule):
         else:
             raise NotImplementedError
 
+        self.group = group
         self.in_type = in_type
         self.out_type = out_type
         in_type, self.in_mult, self.in_inner_dim = convert_field_type(in_type)
@@ -92,7 +94,7 @@ class SSConv(EquivariantModule):
         x_ = x.new_zeros(N, self.in_mult * self.in_inner_dim, H, W)
         x_.index_copy_(1, self.in_sel, x)
         x_ = x_.view(N, self.in_mult, self.in_inner_dim, H, W)
-        x_ = x_.transpose(1, 2).view(N, -1, H, W)
+        x_ = x_.transpose(1, 2).reshape(N, -1, H, W)
 
         start = torch.cuda.Event(enable_timing=True)
         end = torch.cuda.Event(enable_timing=True)
@@ -104,8 +106,9 @@ class SSConv(EquivariantModule):
         torch.cuda.synchronize()
         # print('    ', start.elapsed_time(end))
 
+        N, C, H, W = x_.shape
         x_ = x_.view(N, self.out_inner_dim, self.out_mult, H, W)
-        x_ = x_.transpose(1, 2).view(N, -1, H, W)
+        x_ = x_.transpose(1, 2).reshape(N, -1, H, W)
         x = x_.index_select(1, self.out_sel)
 
         return e2cnn.nn.GeometricTensor(x, self.out_type)

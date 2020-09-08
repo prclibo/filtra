@@ -56,7 +56,7 @@ class IrrepToRegular(nn.Conv2d):
         self.register_buffer('expand_coeffs', expand_coeffs)
 
         self.filters = None
-        self.rotater = FilterRotater(group, self.kernel_size, False)
+        self.rotater = FilterRotater(group, self.kernel_size, reuse=False)
 
         # TODO XXX Deal with bias, refering to e2cnn
 
@@ -79,7 +79,7 @@ class IrrepToRegular(nn.Conv2d):
         Args:
             x: N x [2 x len(out_irreps)] x H x W
         Return:
-[           x: N x [group[0] x group[1] x out_mult] x H x W
+            x: N x [group[0] x group[1] x out_mult] x H x W
         '''
         # [group[0] x group[1] x out_mult] x [2 x len(out_irreps)] x H x W
         self.filters = self.expand_filters(self.weight)
