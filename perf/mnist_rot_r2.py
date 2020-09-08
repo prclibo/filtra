@@ -173,7 +173,7 @@ class C8SteerableCNN(torch.nn.Module):
 
         end.record()
         torch.cuda.synchronize()
-        print('-----', start.elapsed_time(end))
+        # print('-----', start.elapsed_time(end))
 
         # pool over the group
         x = self.gpool(x)
