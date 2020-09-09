@@ -6,6 +6,19 @@ from sscnn.utils import *
 
 DATA_FOLDER='/data/'
 
+def batch_rotate(images, angles):
+    N, C, H, W = images.shape
+    aff = images.new_zeros(N, 2, 3)
+    cosa, sina = angles.cos(), angles.sin()
+    aff[:, 0, 0] = cosa
+    aff[:, 0, 1] = -sina
+    aff[:, 1, 0] = sina
+    aff[:, 1, 1] = cosa
+    grid = F.affine_grid(aff, images.shape, False)
+    rotated = F.grid_sample(images, grid, align_corners=False, 
+            padding_mode='zeros', mode='bilinear') 
+    return rotated
+
 class RotatedMNISTDataset(torchvision.datasets.MNIST):
     def __init__(self, root, train):
         super(RotatedMNISTDataset, self).__init__(root, train, download=True)
