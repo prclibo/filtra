@@ -62,12 +62,13 @@ class BMMRemapper(nn.Module):
         coeffs = coeffs.view(N, num_valid, 4)
         # Equivalent to zero padding
         coeffs[oob_mask] = 0
+        corners[oob_mask] = H * W
 
-        mat_val  = grid.new_zeros(N, num_valid, H * W)
+        mat_val  = grid.new_zeros(N, num_valid, H * W + 1)
         mat_val.scatter_(2, corners, coeffs)
         # N x [H x W] x [H x W]
         interp_mat = grid.new_zeros(N, H * W, H * W)
-        interp_mat[:, disk_mask, :] = mat_val
+        interp_mat[:, disk_mask, :] = mat_val[:, :, :-1]
         return interp_mat
 
     def forward(self, x):

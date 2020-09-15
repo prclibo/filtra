@@ -1,4 +1,8 @@
+import sys
+sys.path.append('/mnt/workspace/sscnn/')
+
 import torch
+import torch.nn.functional as F
 
 from e2cnn import gspaces
 from e2cnn import nn
@@ -8,21 +12,27 @@ import sscnn.e2cnn
 
 import numpy as np
 
-from mnist_rot_dataset import MnistRotDataset
-from models import C8SteerableCNN
+from mnist_rot_dataset import RotatedMNISTDataset 
+from models import C8Backbone, ClassificationHead, RegressionHead
+
+import matplotlib.pyplot as plt
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+batch_size = 128
 
 conv_func = nn.R2Conv
 conv_func = sscnn.e2cnn.SSConv
 # conv_func = sscnn.e2cnn.PlainConv
-model = C8SteerableCNN(out_channels=10, conv_func=conv_func).to(device)
+backbone = C8Backbone(out_channels=2, conv_func=conv_func)
+head = RegressionHead(backbone.out_type, conv_func)
+model = torch.nn.Sequential(backbone, head)
+model = model.to(device)
 
-mnist_train = MnistRotDataset(mode='train')
-train_loader = torch.utils.data.DataLoader(mnist_train, batch_size=64)
+mnist_train = RotatedMNISTDataset('.', train=True)
+train_loader = torch.utils.data.DataLoader(mnist_train, batch_size=batch_size)
 
-mnist_test = MnistRotDataset(mode='test')
-test_loader = torch.utils.data.DataLoader(mnist_test, batch_size=64)
+mnist_test = RotatedMNISTDataset('.', train=False)
+test_loader = torch.utils.data.DataLoader(mnist_test, batch_size=batch_size)
 
 loss_function = torch.nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=5e-5, weight_decay=1e-5)
@@ -39,7 +49,6 @@ for epoch in range(31):
         optimizer.zero_grad()
 
         x = x.to(device)
-        l = l.to(device)
         v = v.to(device)
 
         y = model(x)
@@ -55,21 +64,23 @@ for epoch in range(31):
     torch.cuda.synchronize()
     print('Epoch', start.elapsed_time(end))
     
-    if epoch % 10 == 0:
+    if epoch % 5 == 0:
         total = 0
         error = 0
         with torch.no_grad():
             model.eval()
-            for i, (x, t) in enumerate(test_loader):
+            for i, (x, l, v) in enumerate(test_loader):
 
                 x = x.to(device)
-                l = l.to(device)
                 v = v.to(device)
 
                 y = model(x)
                 y = F.normalize(y, dim=1)
 
-                _, prediction = torch.max(y.data, 1)
-                total += t.shape[0]
-                error += (y - v).square()
-        print(f"epoch {epoch} | test accuracy: {error/total}")
+                total += l.shape[0]
+
+                angles = y.mul(v).sum(dim=1).clamp(-1, 1).acos() * 180 / np.pi
+                error = angles.sum() + error
+
+                loss = loss_function(y, v)
+        print(f"epoch {epoch} | tes : {error/total}, {loss}")

@@ -6,11 +6,11 @@ from e2cnn import nn
 import e2cnn
 import sscnn.e2cnn
 
-class C8SteerableCNN(torch.nn.Module):
+class C8Backbone(torch.nn.Module):
 
     def __init__(self, out_channels, conv_func):
 
-        super(C8SteerableCNN, self).__init__()
+        super(C8Backbone, self).__init__()
 
         # the model is equivariant under rotations by 45 degrees, modelled by C8
         self.r2_act = gspaces.Rot2dOnR2(N=8)
@@ -26,8 +26,8 @@ class C8SteerableCNN(torch.nn.Module):
         # we choose 16 feature fields, each transforming under the regular representation of C8
         out_type = nn.FieldType(self.r2_act, 24*[self.r2_act.regular_repr])
         self.block1 = nn.SequentialModule(
-            nn.MaskModule(in_type, 29, margin=1),
-            conv_func(in_type, out_type, kernel_size=7, padding=1, bias=False),
+            # nn.MaskModule(in_type, 29, margin=1),
+            conv_func(in_type, out_type, kernel_size=5, padding=1, bias=False),
             # nn.InnerBatchNorm(out_type),
             nn.ReLU(out_type, inplace=True)
         )
@@ -94,18 +94,20 @@ class C8SteerableCNN(torch.nn.Module):
         )
         self.pool3 = nn.PointwiseAvgPoolAntialiased(out_type, sigma=0.66, stride=1, padding=0)
 
-        self.gpool = nn.GroupPooling(out_type)
+        self.out_type = self.pool3.out_type
+        # self.gpool = nn.GroupPooling(out_type)
+        # self.gpool = nn.PointwiseAdaptiveMaxPool(out_type, (1, 1))
 
-        # number of output channels
-        c = self.gpool.out_type.size
+        # # number of output channels
+        # c = self.gpool.out_type.size
 
-        # Fully Connected
-        self.fully_net = torch.nn.Sequential(
-            torch.nn.Linear(c, 64),
-            torch.nn.BatchNorm1d(64),
-            torch.nn.ELU(inplace=True),
-            torch.nn.Linear(64, n_classes),
-        )
+        # # Fully Connected
+        # self.fully_net = torch.nn.Sequential(
+        #     torch.nn.Linear(c, 64),
+        #     torch.nn.BatchNorm1d(64),
+        #     torch.nn.ELU(inplace=True),
+        #     torch.nn.Linear(64, out_channels),
+        # )
 
     def forward(self, input: torch.Tensor):
         # wrap the input tensor in a GeometricTensor
@@ -142,15 +144,30 @@ class C8SteerableCNN(torch.nn.Module):
         torch.cuda.synchronize()
         # print('-----', start.elapsed_time(end))
 
-        # pool over the group
-        x = self.gpool(x)
-
-        # unwrap the output GeometricTensor
-        # (take the Pytorch tensor and discard the associated representation)
-        x = x.tensor
-
-        # classify with the final fully connected layers)
-        x = self.fully_net(x.reshape(x.shape[0], -1))
-
         return x
 
+class ClassificationHead(torch.nn.Module):
+    pass
+
+class RegressionHead(torch.nn.Module):
+    def __init__(self, in_type, conv_func):
+        super(RegressionHead, self).__init__()
+        gspace = in_type.gspace
+        self.gpool = nn.PointwiseAdaptiveMaxPool(in_type, (1, 1))
+
+        # number of output channels
+        # Fully Connected
+        in_type = self.gpool.out_type
+        out_type = nn.FieldType(gspace, 8 * [gspace.regular_repr])
+        self.block1 = nn.SequentialModule(
+            conv_func(in_type, out_type, kernel_size=1, padding=0, bias=False),
+            nn.ReLU(out_type, inplace=True)
+        )
+        in_type = self.block1.out_type
+        out_type = nn.FieldType(gspace, [gspace.irrep(1)])
+        self.block2 = conv_func(in_type, out_type, kernel_size=1, padding=0, bias=False)
+
+    def forward(self, x):
+        x = self.block1(x)
+        x = self.block2(x)
+        return x.tensor.flatten(1, -1)
