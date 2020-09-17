@@ -154,6 +154,7 @@ class RegressionHead(torch.nn.Module):
         super(RegressionHead, self).__init__()
         gspace = in_type.gspace
         self.gpool = nn.PointwiseAdaptiveMaxPool(in_type, (1, 1))
+        # self.gpool = nn.GroupPooling(in_type)
 
         # number of output channels
         # Fully Connected
@@ -168,6 +169,7 @@ class RegressionHead(torch.nn.Module):
         self.block2 = conv_func(in_type, out_type, kernel_size=1, padding=0, bias=False)
 
     def forward(self, x):
+        x = self.gpool(x)
         x = self.block1(x)
         x = self.block2(x)
         return x.tensor.flatten(1, -1)

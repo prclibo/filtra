@@ -37,7 +37,7 @@ test_loader = torch.utils.data.DataLoader(mnist_test, batch_size=batch_size)
 loss_function = torch.nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=5e-5, weight_decay=1e-5)
 
-for epoch in range(31):
+for epoch in range(41):
     model.train()
 
     start = torch.cuda.Event(enable_timing=True)
@@ -63,6 +63,8 @@ for epoch in range(31):
     end.record()
     torch.cuda.synchronize()
     print('Epoch', start.elapsed_time(end))
+
+    torch.save(model.state_dict(), './orient_state.pth')
     
     if epoch % 5 == 0:
         total = 0
