@@ -63,13 +63,14 @@ for epoch in range(41):
         loss.backward()
 
         optimizer.step()
+        # break
 
     end.record()
     torch.cuda.synchronize()
     print('Epoch', start.elapsed_time(end))
 
     exported = model.export()
-    torch.save(exported.state_dict(), './orient_state.pth')
+    torch.save(exported.state_dict(), f'./orient_state_{conv_func.__name__}.pth')
     
     if epoch % 5 == 0:
         total = 0

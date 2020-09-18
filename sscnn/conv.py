@@ -93,13 +93,11 @@ class RegularToIrrep(IrrepToRegular):
             kernel_size: int, **kwargs):
         super(RegularToIrrep, self).__init__(group, out_irreps, in_mult, kernel_size, **kwargs)
 
-    def forward(self, x):
+    def expand_filters(self, weight):
         # [group[0] x group[1] x in_mult] x [2 x len(out_irreps)] x H x W
-        self.filters = self.expand_filters(self.weight)
-        self.filters = self.filters.permute(1, 0, 2, 3)
-        x = F.conv2d(x, self.filters, self.bias, self.stride,
-                self.padding, self.dilation, self.groups)
-        return x
+        filters = super(RegularToIrrep, self).expand_filters(weight)
+        filters = filters.permute(1, 0, 2, 3)
+        return filters
 
 class RegularToRegular(IrrepToRegular):
     def __init__(self, group: Tuple[int, int], in_mult:int, out_mult: int,
@@ -113,18 +111,17 @@ class RegularToRegular(IrrepToRegular):
         dct_mat = comp_dctmat(group)
         self.register_buffer('dct_mat', dct_mat.unsqueeze(-1))
 
-    def forward(self, x):
+    def expand_filters(self, weight):
         order = self.group[0] * self.group[1]
         # [group[0] x group[1] x in_mult] x [2 x len(out_irreps)] x H x W
-        self.filters = self.expand_filters(self.weight)
-        C_o, C_i, H, W = self.filters.shape
+        filters = super(RegularToRegular, self).expand_filters(weight)
+        C_o, C_i, H, W = filters.shape
         # [group[0] x group[1] x out_mult] x [2 x order // 2] [in_mult x H x W]
-        self.filters = self.filters.view(C_o, -1, self.in_mult * H * W)
+        filters = filters.view(C_o, -1, self.in_mult * H * W)
         # [group[0] x group[1] x out_mult] x [group[0] x group[1]] [in_mult x H x W]
-        self.filters = F.conv1d(self.filters, self.dct_mat)
+        filters = F.conv1d(filters, self.dct_mat)
         # [group[0] x group[1] x out_mult] x [group[0] x group[1] x in_mult] x H x W
-        self.filters = self.filters.view(C_o, -1, H, W)
-        x = F.conv2d(x, self.filters, self.bias, self.stride, self.padding, self.dilation, self.groups)
-        return x
+        filters = filters.view(C_o, -1, H, W)
+        return filters
 
 

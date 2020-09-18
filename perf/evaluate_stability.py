@@ -19,11 +19,13 @@ from models import C8Backbone, ClassificationHead, RegressionHead
 import matplotlib.pyplot as plt
 from sscnn.utils import *
 
+from mnist_rot_dataset import batch_rotate
+
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 batch_size = 128
 
 conv_func = nn.R2Conv
-# conv_func = sscnn.e2cnn.SSConv
+conv_func = sscnn.e2cnn.SSConv
 # conv_func = sscnn.e2cnn.PlainConv
 backbone = C8Backbone(out_channels=2, conv_func=conv_func)
 head = RegressionHead(backbone.out_type, conv_func)
@@ -69,6 +71,7 @@ y = model(rotated)
 pred_angles = torch.atan2(y[:, 1, 0, 0], y[:, 0, 0, 0])
 # pred_angles = (pred_angles + np.pi * 2).fmod(np.pi * 2)
 
+print(y[:, :, 0, 0])
 print(pred_angles - start)
 
 import pdb; pdb.set_trace()

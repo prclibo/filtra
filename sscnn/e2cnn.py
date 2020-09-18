@@ -80,6 +80,7 @@ class SSConv(EquivariantModule):
         self.conv = conv_type(group, in_type, out_type,
                 kernel_size=kernel_size, padding=padding,
                 stride=stride, dilation=dilation, groups=groups, bias=bias)
+        self.bias = None
 
     def forward(self, x):
         '''
@@ -132,27 +133,15 @@ class SSConv(EquivariantModule):
         
         # set to eval mode so the filter and the bias are updated with the current
         # values of the weights
-        self.eval()
-        filter = self.filter
-        bias = self.expanded_bias
+        return SSConvExported(self)
 
-        # build the PyTorch Conv2d module
-        has_bias = self.bias is not None
-        conv = torch.nn.Conv2d(self.in_type.size,
-                               self.out_type.size,
-                               self.kernel_size,
-                               padding=self.padding,
-                               stride=self.stride,
-                               dilation=self.dilation,
-                               groups=self.groups,
-                               bias=has_bias)
+class SSConvExported(torch.nn.Module):
+    def __init__(self, conv):
+        super(SSConvExported, self).__init__()
+        self.conv = conv
+    def forward(self, x):
+        return self.conv.forward(e2cnn.nn.GeometricTensor(x, self.conv.in_type)).tensor
 
-        # set the filter and the bias
-        conv.weight.data = filter.data
-        if has_bias:
-            conv.bias.data = bias.data
-        
-        return conv
         
 class PlainConv(EquivariantModule):
     def __init__(self,
