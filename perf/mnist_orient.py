@@ -1,6 +1,7 @@
 import sys
 sys.path.append('/mnt/workspace/sscnn/')
 
+from collections import OrderedDict
 import torch
 import torch.nn.functional as F
 
@@ -21,11 +22,13 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 batch_size = 128
 
 conv_func = nn.R2Conv
-conv_func = sscnn.e2cnn.SSConv
+# conv_func = sscnn.e2cnn.SSConv
 # conv_func = sscnn.e2cnn.PlainConv
 backbone = C8Backbone(out_channels=2, conv_func=conv_func)
 head = RegressionHead(backbone.out_type, conv_func)
-model = torch.nn.Sequential(backbone, head)
+model = nn.SequentialModule(OrderedDict([
+    ('backbone', backbone), ('head', head)
+]))
 model = model.to(device)
 
 mnist_train = RotatedMNISTDataset('.', train=True)
@@ -51,7 +54,8 @@ for epoch in range(41):
         x = x.to(device)
         v = v.to(device)
 
-        y = model(x)
+        y = model(nn.GeometricTensor(x, backbone.input_type))
+        y = y.tensor.flatten(1, -1)
         y = F.normalize(y, dim=1)
 
         loss = loss_function(y, v)
@@ -64,7 +68,8 @@ for epoch in range(41):
     torch.cuda.synchronize()
     print('Epoch', start.elapsed_time(end))
 
-    torch.save(model.state_dict(), './orient_state.pth')
+    exported = model.export()
+    torch.save(exported.state_dict(), './orient_state.pth')
     
     if epoch % 5 == 0:
         total = 0
@@ -76,7 +81,8 @@ for epoch in range(41):
                 x = x.to(device)
                 v = v.to(device)
 
-                y = model(x)
+                y = model(nn.GeometricTensor(x, backbone.input_type))
+                y = y.tensor.flatten(1, -1)
                 y = F.normalize(y, dim=1)
 
                 total += l.shape[0]

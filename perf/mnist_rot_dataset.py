@@ -14,6 +14,7 @@ def batch_rotate(images, angles):
     aff[:, 0, 1] = -sina
     aff[:, 1, 0] = sina
     aff[:, 1, 1] = cosa
+    print(aff)
     grid = F.affine_grid(aff, images.shape, False)
     rotated = F.grid_sample(images, grid, align_corners=False, 
             padding_mode='zeros', mode='bilinear') 
