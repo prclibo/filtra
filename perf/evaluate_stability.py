@@ -21,6 +21,8 @@ from sscnn.utils import *
 
 from mnist_rot_dataset import batch_rotate
 
+torch.set_printoptions(sci_mode=False, linewidth=160)
+
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 batch_size = 128
 
@@ -35,7 +37,7 @@ model = nn.SequentialModule(OrderedDict([
 model = model.to(device)
 model = model.export()
 
-sdict = torch.load('/mnt/workspace/sscnn/orient_state.pth')
+sdict = torch.load(f'/mnt/workspace/sscnn/orient_state_{conv_func.__name__}.pth')
 model.load_state_dict(sdict)
 
 height, width = 33, 33
@@ -61,7 +63,7 @@ NN = 16
 # import pdb; pdb.set_trace()
 x = torch.rand(1, 1, height, width).to(device).expand(NN, -1, -1, -1)
 y0 = model(x[0:1]).flatten()
-start = 0#torch.atan2(y0[1], y0[0])
+start = torch.atan2(y0[1], y0[0])
 
 
 angles = torch.arange(NN).float() / NN * np.pi * 2

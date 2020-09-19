@@ -22,7 +22,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 batch_size = 128
 
 conv_func = nn.R2Conv
-# conv_func = sscnn.e2cnn.SSConv
+conv_func = sscnn.e2cnn.SSConv
 # conv_func = sscnn.e2cnn.PlainConv
 backbone = C8Backbone(out_channels=2, conv_func=conv_func)
 head = RegressionHead(backbone.out_type, conv_func)
@@ -63,7 +63,7 @@ for epoch in range(41):
         loss.backward()
 
         optimizer.step()
-        # break
+        break
 
     end.record()
     torch.cuda.synchronize()

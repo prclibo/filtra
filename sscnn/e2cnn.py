@@ -126,19 +126,22 @@ class SSConv(EquivariantModule):
         return b, self.out_type.size, ho, wo
 
     def export(self):
-        r"""
-        Export this module to a normal PyTorch :class:`torch.nn.Conv2d` module and set to "eval" mode.
-
-        """
-        
-        # set to eval mode so the filter and the bias are updated with the current
-        # values of the weights
-        return SSConvExported(self)
+        conv = torch.nn.Conv2d(self.in_type.size,
+                               self.out_type.size,
+                               self.conv.kernel_size,
+                               padding=self.conv.padding,
+                               stride=self.conv.stride,
+                               dilation=self.conv.dilation,
+                               groups=self.conv.groups,
+                               bias=False)
+        conv.weight.data = self.conv.expand_filters(self.conv.weight)
+        return conv
 
 class SSConvExported(torch.nn.Module):
     def __init__(self, conv):
         super(SSConvExported, self).__init__()
-        self.conv = conv
+        self.weight.data = self.conv.expand_filters(self.conv.weight)
+
     def forward(self, x):
         return self.conv.forward(e2cnn.nn.GeometricTensor(x, self.conv.in_type)).tensor
 
