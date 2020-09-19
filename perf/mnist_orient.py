@@ -63,7 +63,7 @@ for epoch in range(41):
         loss.backward()
 
         optimizer.step()
-        break
+        # break
 
     end.record()
     torch.cuda.synchronize()
