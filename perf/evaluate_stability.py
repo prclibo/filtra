@@ -37,15 +37,18 @@ model = nn.SequentialModule(OrderedDict([
 model = model.to(device)
 model = model.export()
 
-sdict = torch.load(f'/mnt/workspace/sscnn/orient_state_{conv_func.__name__}.pth')
+# sdict = torch.load(f'/mnt/workspace/sscnn/orient_state_{conv_func.__name__}.pth')
+sdict = torch.load(f'/home/li/workspace/sscnn/orient_state_{conv_func.__name__}.pth')
 model.load_state_dict(sdict)
+
+model = model.backbone.block1
 
 height, width = 33, 33
 x = torch.rand(1, 1, height, width).to(device)
-y0 = model(x).flatten()
-start = torch.atan2(y0[1], y0[0])
+y0 = model(x)#.flatten()
+# start = torch.atan2(y0[1], y0[0])
 
-NN = 16
+NN = 8
 # for i in range(NN):
 #     angle = np.pi * 2 / NN * i
 #     aff = torch.zeros(1, 2, 3)
@@ -63,14 +66,15 @@ NN = 16
 # import pdb; pdb.set_trace()
 x = torch.rand(1, 1, height, width).to(device).expand(NN, -1, -1, -1)
 y0 = model(x[0:1]).flatten()
-start = torch.atan2(y0[1], y0[0])
+# start = torch.atan2(y0[1], y0[0])
 
 
 angles = torch.arange(NN).float() / NN * np.pi * 2
 rotated = batch_rotate(x, angles)
 y = model(rotated)
+import pdb; pdb.set_trace()
 
-pred_angles = torch.atan2(y[:, 1, 0, 0], y[:, 0, 0, 0])
+# pred_angles = torch.atan2(y[:, 1, 0, 0], y[:, 0, 0, 0])
 # pred_angles = (pred_angles + np.pi * 2).fmod(np.pi * 2)
 
 print(y[:, :, 0, 0])
