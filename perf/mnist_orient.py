@@ -14,7 +14,7 @@ import sscnn.e2cnn
 import numpy as np
 
 from mnist_rot_dataset import RotatedMNISTDataset 
-from models import C8Backbone, ClassificationHead, RegressionHead
+from models import C8Backbone3x3, ClassificationHead, RegressionHead
 
 import matplotlib.pyplot as plt
 
@@ -22,9 +22,9 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 batch_size = 128
 
 conv_func = nn.R2Conv
-conv_func = sscnn.e2cnn.SSConv
+# conv_func = sscnn.e2cnn.SSConv
 # conv_func = sscnn.e2cnn.PlainConv
-backbone = C8Backbone(out_channels=2, conv_func=conv_func)
+backbone = C8Backbone3x3(out_channels=2, conv_func=conv_func)
 head = RegressionHead(backbone.out_type, conv_func)
 model = nn.SequentialModule(OrderedDict([
     ('backbone', backbone), ('head', head)

@@ -249,7 +249,7 @@ class ConvTest(unittest.TestCase):
         from models import C8Backbone, RegressionHead
         device = 'cpu'
         conv_func = sscnn.e2cnn.SSConv
-        conv_func = e2cnn.nn.R2Conv
+        # conv_func = e2cnn.nn.R2Conv
         # conv_func = sscnn.e2cnn.PlainConv
         backbone = C8Backbone(out_channels=2, conv_func=conv_func)
         head = RegressionHead(backbone.out_type, conv_func)
@@ -288,16 +288,16 @@ class ConvTest(unittest.TestCase):
             x1 = rotate_trivials(x0, elem, group)
             # x1 = rotate_irreps(x0, elem, in_irreps, group)
             y1 = conv.forward(x1)
-            # import pdb; pdb.set_trace()
             y1_ = rotate_regulars(y0, elem, group)
 
             y0 = y0.view(self.batch_size, -1, 8, y0.shape[-2], y0.shape[-1])
             y1 = y1.view(self.batch_size, -1, 8, y1.shape[-2], y1.shape[-1])
 
-            print(y0[0, 0, :, y0.shape[-2] // 2, y0.shape[-1] // 2])
-            print(y1[0, 0, :, y0.shape[-2] // 2, y0.shape[-1] // 2])
+            print(y0[0, 2, :, y0.shape[-2] // 2, y0.shape[-1] // 2])
+            print(y1[0, 2, :, y0.shape[-2] // 2, y0.shape[-1] // 2])
             # print(y1_[0, ::24, y0.shape[-2] // 2, y0.shape[-1] // 2])
             print('--;')
+            # import pdb; pdb.set_trace()
 
             # rel_err_ss = comp_regular_rel_err(group, y1, y1_)
             # print(elem, 'max_rel_err =', rel_err_ss.detach())
@@ -394,8 +394,8 @@ T.setUp()
 # T.test_regular_to_irrep_reflection()
 # T.test_irrep_to_regular_reflection()
 # T.test_regular_to_irrep_Cn()
-# T.test_irrep_to_regular_Cn()
+T.test_irrep_to_regular_Cn()
 # T.test_irrep_to_regular_Dn()
-T.test_regular_to_regular_Cn()
+# T.test_regular_to_regular_Cn()
 # T.test_regular_to_irrep_Dn()
 # T.test_regular_to_regular_Dn()

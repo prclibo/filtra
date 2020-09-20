@@ -11,14 +11,17 @@ EPS = 1e-5
 LARGE = 1e5
 
 class BMMRemapper(nn.Module):
-    def __init__(self, grid):
+    def __init__(self, grid, interpolation='nearest'):
         '''
         Args:
             grid: N x H x W x 2
         '''
         super(BMMRemapper, self).__init__()
+        self.interpolation = interpolation
+
         interp_mat = self.comp_interp_mat(grid)
         interp_mat_t = interp_mat.transpose(1, 2)
+
 
         self.register_buffer('grid', grid)
         self.register_buffer('interp_mat', interp_mat)
@@ -26,7 +29,7 @@ class BMMRemapper(nn.Module):
 
     def comp_interp_mat(self, grid):
         N, H, W, _ = grid.shape
-        # N x H x W, corresponding -1 < nlized_grid < 1
+        # H x W, corresponding -1 < nlized_grid < 1
         disk_mask = (grid[:, :, :, 0] >= 0 - 0.5).all(0) &\
                     (grid[:, :, :, 0] <= H - 1 + 0.5).all(0) &\
                     (grid[:, :, :, 1] >= 0 - 0.5).all(0) &\
@@ -40,6 +43,43 @@ class BMMRemapper(nn.Module):
             grid[:, disk_mask, 0].clamp(EPS, H - 1 - EPS),
             grid[:, disk_mask, 1].clamp(EPS, W - 1 - EPS),
         ], -1)
+
+        if self.interpolation == 'nearest':
+            corners, coeffs = self.comp_interp_mat_helper_nearest(grid, H, W)
+        elif self.interpolation == 'bilinear':
+            corners, coeffs = self.comp_interp_mat_helper_bilinear(grid, H, W)
+        else:
+            raise NotImplementedError
+
+        mat_val  = grid.new_zeros(N, num_valid, H * W + 1)
+        mat_val.scatter_(2, corners, coeffs)
+        # N x [H x W] x [H x W]
+        interp_mat = grid.new_zeros(N, H * W, H * W)
+        interp_mat[:, disk_mask, :] = mat_val[:, :, :-1]
+        return interp_mat
+
+    def comp_interp_mat_helper_nearest(self, grid, H, W):
+        N, num_valid, _ = grid.shape
+        # N x num_valid x 1 x 2
+        corners = grid.round().long().view(N, -1, 1, 2)
+
+        oob_mask = (corners[:, :, :, 0] < 0) |\
+                   (corners[:, :, :, 0] > H - 1) |\
+                   (corners[:, :, :, 1] < 0) |\
+                   (corners[:, :, :, 1] > W - 1)
+
+        # N x num_valid x 1
+        corners = corners[:, :, :, 0] * W + corners[:, :, :, 1]
+        # N x num_valid x 1
+        coeffs = grid.new_ones(N, num_valid, 1)
+        # Equivalent to zero padding
+        coeffs[oob_mask] = 0
+        corners[oob_mask] = H * W
+
+        return corners, coeffs
+
+    def comp_interp_mat_helper_bilinear(self, grid, H, W):
+        N, num_valid, _ = grid.shape
         # N x num_valid x 4 x 2
         corners = grid.floor().long().view(N, -1, 1, 2).expand(-1, -1, 4, -1)
         corners = corners + torch.LongTensor([[0, 0], [0, 1], [1, 0], [1, 1]])
@@ -64,12 +104,7 @@ class BMMRemapper(nn.Module):
         coeffs[oob_mask] = 0
         corners[oob_mask] = H * W
 
-        mat_val  = grid.new_zeros(N, num_valid, H * W + 1)
-        mat_val.scatter_(2, corners, coeffs)
-        # N x [H x W] x [H x W]
-        interp_mat = grid.new_zeros(N, H * W, H * W)
-        interp_mat[:, disk_mask, :] = mat_val[:, :, :-1]
-        return interp_mat
+        return corners, coeffs
 
     def forward(self, x):
         '''

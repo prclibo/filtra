@@ -14,7 +14,7 @@ import sscnn.e2cnn
 import numpy as np
 
 from mnist_rot_dataset import RotatedMNISTDataset 
-from models import C8Backbone, ClassificationHead, RegressionHead
+from models import C8Backbone3x3, ClassificationHead, RegressionHead
 
 import matplotlib.pyplot as plt
 from sscnn.utils import *
@@ -29,7 +29,7 @@ batch_size = 128
 conv_func = nn.R2Conv
 conv_func = sscnn.e2cnn.SSConv
 # conv_func = sscnn.e2cnn.PlainConv
-backbone = C8Backbone(out_channels=2, conv_func=conv_func)
+backbone = C8Backbone3x3(out_channels=2, conv_func=conv_func)
 head = RegressionHead(backbone.out_type, conv_func)
 model = nn.SequentialModule(OrderedDict([
     ('backbone', backbone), ('head', head)
@@ -66,15 +66,15 @@ NN = 8
 # import pdb; pdb.set_trace()
 x = torch.rand(1, 1, height, width).to(device).expand(NN, -1, -1, -1)
 y0 = model(x[0:1]).flatten()
-# start = torch.atan2(y0[1], y0[0])
+start = torch.atan2(y0[1], y0[0])
 
 
 angles = torch.arange(NN).float() / NN * np.pi * 2
 rotated = batch_rotate(x, angles)
 y = model(rotated)
-import pdb; pdb.set_trace()
+# import pdb; pdb.set_trace()
 
-# pred_angles = torch.atan2(y[:, 1, 0, 0], y[:, 0, 0, 0])
+pred_angles = torch.atan2(y[:, 1, 0, 0], y[:, 0, 0, 0])
 # pred_angles = (pred_angles + np.pi * 2).fmod(np.pi * 2)
 
 print(y[:, :, 0, 0])
