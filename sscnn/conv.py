@@ -10,6 +10,9 @@ from torch.nn import functional as F
 from .utils import *
 from .rotater import *
 
+DEFAULT_INTERPOLATION='nearest'
+DEFAULT_INTERPOLATION='bilinear'
+
 def comp_irreps_expan_coeffs(group: Tuple[int, int], irreps: torch.Tensor):
     M = len(irreps)
     angles = torch.arange(group[1]) * math.pi * 2 / group[1]
@@ -39,7 +42,7 @@ def comp_dctmat(group):
 class IrrepToRegular(nn.Conv2d):
     def __init__(self, group: Tuple[int, int],
             in_irreps: List[Tuple[int, int]], out_mult: int,
-            kernel_size: int, **kwargs):
+            kernel_size: int, interpolation=DEFAULT_INTERPOLATION,  **kwargs):
 
         in_channels = len(in_irreps)
         out_channels = out_mult
@@ -56,7 +59,7 @@ class IrrepToRegular(nn.Conv2d):
         self.register_buffer('expand_coeffs', expand_coeffs)
 
         self.filters = None
-        self.rotater = FilterRotater(group, self.kernel_size, reuse=False)
+        self.rotater = FilterRotater(group, self.kernel_size, reuse=False, interpolation=DEFAULT_INTERPOLATION)
 
         # TODO XXX Deal with bias, refering to e2cnn
 
@@ -90,8 +93,8 @@ class IrrepToRegular(nn.Conv2d):
 class RegularToIrrep(IrrepToRegular):
     def __init__(self, group: Tuple[int, int],
             in_mult: int, out_irreps: List[Tuple[int, int]],
-            kernel_size: int, **kwargs):
-        super(RegularToIrrep, self).__init__(group, out_irreps, in_mult, kernel_size, **kwargs)
+            kernel_size: int, interpolation=DEFAULT_INTERPOLATION,  **kwargs):
+        super(RegularToIrrep, self).__init__(group, out_irreps, in_mult, kernel_size, interpolation, **kwargs)
 
     def expand_filters(self, weight):
         # [group[0] x group[1] x in_mult] x [2 x len(out_irreps)] x H x W
@@ -101,10 +104,10 @@ class RegularToIrrep(IrrepToRegular):
 
 class RegularToRegular(IrrepToRegular):
     def __init__(self, group: Tuple[int, int], in_mult:int, out_mult: int,
-            kernel_size: int, **kwargs):
+            kernel_size: int, interpolation=DEFAULT_INTERPOLATION,  **kwargs):
         in_irreps = [(s, r) for s in range(group[0]) for r in range(group[1] // 2 + 1)]
         in_irreps = [irrep for irrep in in_irreps for _ in range(in_mult)]
-        super(RegularToRegular, self).__init__(group, in_irreps, out_mult, kernel_size, **kwargs)
+        super(RegularToRegular, self).__init__(group, in_irreps, out_mult, kernel_size, interpolation,  **kwargs)
 
         self.in_mult = in_mult
         # [group[0] x group[1]] x [2 x len(irreps)]

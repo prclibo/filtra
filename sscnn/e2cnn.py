@@ -62,6 +62,10 @@ class SSConv(EquivariantModule):
         if isinstance(in_type.gspace, e2cnn.gspaces.Rot2dOnR2):
             assert isinstance(in_type.gspace.fibergroup, e2cnn.group.CyclicGroup)
             group = (1, len(in_type.gspace.fibergroup.elements))
+        elif isinstance(in_type.gspace, e2cnn.gspaces.FlipRot2dOnR2):
+            assert isinstance(in_type.gspace.fibergroup, e2cnn.group.DihedralGroup)
+            group = (2, in_type.gspace.fibergroup.rotation_order)
+            print('group', group)
         else:
             raise NotImplementedError
 
@@ -70,6 +74,7 @@ class SSConv(EquivariantModule):
         self.out_type = out_type
         in_type, self.in_mult, self.in_inner_dim = convert_field_type(in_type)
         out_type, self.out_mult, self.out_inner_dim = convert_field_type(out_type)
+        print('type', in_type, out_type)
 
         in_sel = type_to_selection(in_type, group)
         out_sel = type_to_selection(out_type, group)
@@ -97,14 +102,14 @@ class SSConv(EquivariantModule):
         x_ = x_.view(N, self.in_mult, self.in_inner_dim, H, W)
         x_ = x_.transpose(1, 2).reshape(N, -1, H, W)
 
-        start = torch.cuda.Event(enable_timing=True)
-        end = torch.cuda.Event(enable_timing=True)
-        start.record()
+        # start = torch.cuda.Event(enable_timing=True)
+        # end = torch.cuda.Event(enable_timing=True)
+        # start.record()
 
         x_ = self.conv.forward(x_)
         
-        end.record()
-        torch.cuda.synchronize()
+        # end.record()
+        # torch.cuda.synchronize()
         # print('    ', start.elapsed_time(end))
 
         N, C, H, W = x_.shape
@@ -180,3 +185,6 @@ class PlainConv(EquivariantModule):
         wo = math.floor((wi + 2 * self.padding - self.dilation * (self.kernel_size - 1) - 1) / self.stride + 1)
 
         return b, self.out_type.size, ho, wo
+
+    def export(self):
+        return self.conv

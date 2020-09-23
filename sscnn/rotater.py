@@ -11,7 +11,7 @@ EPS = 1e-5
 LARGE = 1e5
 
 class BMMRemapper(nn.Module):
-    def __init__(self, grid, interpolation='nearest'):
+    def __init__(self, grid, interpolation='bilinear'):
         '''
         Args:
             grid: N x H x W x 2
@@ -29,34 +29,39 @@ class BMMRemapper(nn.Module):
 
     def comp_interp_mat(self, grid):
         N, H, W, _ = grid.shape
-        # H x W, corresponding -1 < nlized_grid < 1
-        disk_mask = (grid[:, :, :, 0] >= 0 - 0.5).all(0) &\
-                    (grid[:, :, :, 0] <= H - 1 + 0.5).all(0) &\
-                    (grid[:, :, :, 1] >= 0 - 0.5).all(0) &\
-                    (grid[:, :, :, 1] <= W - 1 + 0.5).all(0)
-        disk_mask = disk_mask.flatten()
-        num_valid = disk_mask.sum()
-        
-        grid = grid.view(N, -1, 2)
-        # N x num_valid x 2
-        grid = torch.stack([
-            grid[:, disk_mask, 0].clamp(EPS, H - 1 - EPS),
-            grid[:, disk_mask, 1].clamp(EPS, W - 1 - EPS),
-        ], -1)
-
-        if self.interpolation == 'nearest':
-            corners, coeffs = self.comp_interp_mat_helper_nearest(grid, H, W)
-        elif self.interpolation == 'bilinear':
-            corners, coeffs = self.comp_interp_mat_helper_bilinear(grid, H, W)
-        else:
+        if H == 1 and W == 1:
+            return grid.new_ones(N, 1, 1)
+        elif H == 1 or W == 1:
             raise NotImplementedError
+        else:
+            # H x W, corresponding -1 < nlized_grid < 1
+            disk_mask = (grid[:, :, :, 0] >= 0 - 0.5).all(0) &\
+                        (grid[:, :, :, 0] <= H - 1 + 0.5).all(0) &\
+                        (grid[:, :, :, 1] >= 0 - 0.5).all(0) &\
+                        (grid[:, :, :, 1] <= W - 1 + 0.5).all(0)
+            disk_mask = disk_mask.flatten()
+            num_valid = disk_mask.sum()
+            
+            grid = grid.view(N, -1, 2)
+            # N x num_valid x 2
+            grid = torch.stack([
+                grid[:, disk_mask, 0].clamp(EPS, H - 1 - EPS),
+                grid[:, disk_mask, 1].clamp(EPS, W - 1 - EPS),
+            ], -1)
 
-        mat_val  = grid.new_zeros(N, num_valid, H * W + 1)
-        mat_val.scatter_(2, corners, coeffs)
-        # N x [H x W] x [H x W]
-        interp_mat = grid.new_zeros(N, H * W, H * W)
-        interp_mat[:, disk_mask, :] = mat_val[:, :, :-1]
-        return interp_mat
+            if self.interpolation == 'nearest':
+                corners, coeffs = self.comp_interp_mat_helper_nearest(grid, H, W)
+            elif self.interpolation == 'bilinear':
+                corners, coeffs = self.comp_interp_mat_helper_bilinear(grid, H, W)
+            else:
+                raise NotImplementedError
+
+            mat_val  = grid.new_zeros(N, num_valid, H * W + 1)
+            mat_val.scatter_(2, corners, coeffs)
+            # N x [H x W] x [H x W]
+            interp_mat = grid.new_zeros(N, H * W, H * W)
+            interp_mat[:, disk_mask, :] = mat_val[:, :, :-1]
+            return interp_mat
 
     def comp_interp_mat_helper_nearest(self, grid, H, W):
         N, num_valid, _ = grid.shape
@@ -121,11 +126,12 @@ class BMMRemapper(nn.Module):
         return x
 
 class GridSampleRemapper(nn.Module):
-    def __init__(self, nlized_grid):
+    def __init__(self, nlized_grid, interpolation):
         super(GridSampleRemapper, self).__init__()
         disk_mask = (nlized_grid.norm(dim=-1) > 1).unsqueeze(-1)
         nlized_grid = nlized_grid.masked_fill(disk_mask, LARGE)
         nlized_grid = nlized_grid.flatten(0, 1)
+        self.interpolation = interpolation
 
         self.register_buffer('nlized_grid', nlized_grid)
     def forward(self, x):
@@ -133,11 +139,11 @@ class GridSampleRemapper(nn.Module):
         Args:
             x: groups x channels x H x W
         '''
-        x = F.grid_sample(x, self.nlized_grid, align_corners=False, padding_mode='zeros', mode='bilinear')
+        x = F.grid_sample(x, self.nlized_grid, align_corners=False, padding_mode='zeros', mode=self.interpolation)
         return x
 
 class FilterRotater(nn.Module):
-    def __init__(self, group: Tuple[int, int], size: Tuple[int, int], reuse=True, method='bmm'):
+    def __init__(self, group: Tuple[int, int], size: Tuple[int, int], reuse=True, method='bmm', interpolation='bilinear'):
         super(FilterRotater, self).__init__()
         check_validity(group=group)
         self.group = group
@@ -176,9 +182,9 @@ class FilterRotater(nn.Module):
             self.divisor = (1, 1)
         portion = tuple(g // d for g, d in zip(group, self.divisor))
         if method == 'bmm':
-            self.remapper = BMMRemapper(grid[:portion[0], :portion[1]].flatten(0, 1))
+            self.remapper = BMMRemapper(grid[:portion[0], :portion[1]].flatten(0, 1), interpolation)
         elif method == 'grid_sample':
-            self.remapper = GridSampleRemapper(ngrid[:portion[0], :portion[1]])
+            self.remapper = GridSampleRemapper(ngrid[:portion[0], :portion[1]], interpolation)
         else:
             raise NotImplementedError
 

@@ -1,6 +1,9 @@
 import sys
 sys.path.append('/mnt/workspace/sscnn/')
 
+import os
+import time
+
 from collections import OrderedDict
 import torch
 import torch.nn.functional as F
@@ -14,17 +17,24 @@ import sscnn.e2cnn
 import numpy as np
 
 from mnist_rot_dataset import RotatedMNISTDataset 
-from models import C8Backbone3x3, ClassificationHead, RegressionHead
+from models import C8Backbone3x3, Backbone5x5, ClassificationHead, RegressionHead
 
 import matplotlib.pyplot as plt
+
+torch.manual_seed(23)
+torch.cuda.manual_seed(23)
+np.random.seed(23)
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 batch_size = 128
 
+group=gspaces.Rot2dOnR2(N=8)
+# group=gspaces.FlipRot2dOnR2(N=8)
+
 conv_func = nn.R2Conv
-# conv_func = sscnn.e2cnn.SSConv
+conv_func = sscnn.e2cnn.SSConv
 # conv_func = sscnn.e2cnn.PlainConv
-backbone = C8Backbone3x3(out_channels=2, conv_func=conv_func)
+backbone = Backbone5x5(out_channels=2, conv_func=conv_func, group=group)
 head = RegressionHead(backbone.out_type, conv_func)
 model = nn.SequentialModule(OrderedDict([
     ('backbone', backbone), ('head', head)
@@ -38,14 +48,18 @@ mnist_test = RotatedMNISTDataset('.', train=False)
 test_loader = torch.utils.data.DataLoader(mnist_test, batch_size=batch_size)
 
 loss_function = torch.nn.MSELoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=5e-5, weight_decay=1e-5)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-2, weight_decay=1e-5)
 
+file_path = None
 for epoch in range(41):
     model.train()
 
-    start = torch.cuda.Event(enable_timing=True)
-    end = torch.cuda.Event(enable_timing=True)
-    start.record()
+    if device == 'cuda':
+        start = torch.cuda.Event(enable_timing=True)
+        end = torch.cuda.Event(enable_timing=True)
+        start.record()
+    else:
+        start = time.time()
 
     for i, (x, l, v) in enumerate(train_loader):
         
@@ -56,6 +70,7 @@ for epoch in range(41):
 
         y = model(nn.GeometricTensor(x, backbone.input_type))
         y = y.tensor.flatten(1, -1)
+
         y = F.normalize(y, dim=1)
 
         loss = loss_function(y, v)
@@ -63,15 +78,17 @@ for epoch in range(41):
         loss.backward()
 
         optimizer.step()
-        # break
+        # if i > 50:
+        #     break
 
-    end.record()
-    torch.cuda.synchronize()
-    print('Epoch', start.elapsed_time(end))
+    if device == 'cuda':
+        end.record()
+        torch.cuda.synchronize()
+        print('Epoch', start.elapsed_time(end))
+    else:
+        end = time.time()
+        print('Epoch', end - start)
 
-    exported = model.export()
-    torch.save(exported.state_dict(), f'./orient_state_{conv_func.__name__}.pth')
-    
     if epoch % 5 == 0:
         total = 0
         error = 0
@@ -92,4 +109,13 @@ for epoch in range(41):
                 error = angles.sum() + error
 
                 loss = loss_function(y, v)
-        print(f"epoch {epoch} | tes : {error/total}, {loss}")
+        error = error/total
+        print(f"epoch {epoch} | tes : {error}, {loss}")
+        exported = model.export()
+        print(file_path)
+        if file_path:
+            print('removing')
+            os.remove(file_path)
+        file_path = f'./orient_state_{conv_func.__name__}.{type(group).__name__}.{error}.pth'
+        torch.save(exported.state_dict(), file_path)
+    
