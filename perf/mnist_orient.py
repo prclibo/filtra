@@ -7,6 +7,8 @@ import time
 from collections import OrderedDict
 import torch
 import torch.nn.functional as F
+import torchvision
+from torchvision import transforms
 
 from e2cnn import gspaces
 from e2cnn import nn
@@ -16,8 +18,10 @@ import sscnn.e2cnn
 
 import numpy as np
 
-from mnist_rot_dataset import RotatedMNISTDataset 
+from mnist_rot_dataset import RotatedMNISTDataset, TransformedDataset
 from models import C8Backbone3x3, Backbone5x5, ClassificationHead, RegressionHead
+
+from functools import partial
 
 import matplotlib.pyplot as plt
 
@@ -29,26 +33,40 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 batch_size = 128
 
 group=gspaces.Rot2dOnR2(N=8)
-# group=gspaces.FlipRot2dOnR2(N=8)
+group=gspaces.FlipRot2dOnR2(N=8)
 
 conv_func = nn.R2Conv
-conv_func = sscnn.e2cnn.SSConv
+# conv_func = sscnn.e2cnn.SSConv
 # conv_func = sscnn.e2cnn.PlainConv
 backbone = Backbone5x5(out_channels=2, conv_func=conv_func, group=group)
 head = RegressionHead(backbone.out_type, conv_func)
+
+dataset_func = partial(torchvision.datasets.MNIST,
+        transform=transforms.ToTensor())
+# dataset_func = partial(torchvision.datasets.CIFAR10,
+#         transform=transforms.Compose([
+#             transforms.Grayscale(num_output_channels=1),
+#             transforms.ToTensor(),
+#             transforms.Normalize(mean=[0.5], std=[0.5])
+#         ])
+# )
+
 model = nn.SequentialModule(OrderedDict([
     ('backbone', backbone), ('head', head)
 ]))
 model = model.to(device)
 
-mnist_train = RotatedMNISTDataset('.', train=True)
+mnist_train = TransformedDataset(
+        dataset_func('.', train=True, download=True),
+        random_rotate=True, random_reflect=True)
 train_loader = torch.utils.data.DataLoader(mnist_train, batch_size=batch_size)
 
-mnist_test = RotatedMNISTDataset('.', train=False)
+mnist_test = TransformedDataset(dataset_func('.', train=False, download=True),
+        random_rotate=True, random_reflect=True)
 test_loader = torch.utils.data.DataLoader(mnist_test, batch_size=batch_size)
 
 loss_function = torch.nn.MSELoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-2, weight_decay=1e-5)
+optimizer = torch.optim.Adam(model.parameters(), lr=5e-5, weight_decay=1e-5)
 
 file_path = None
 for epoch in range(41):

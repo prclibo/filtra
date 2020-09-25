@@ -19,32 +19,51 @@ def batch_rotate(images, angles):
             padding_mode='zeros', mode='bilinear') 
     return rotated
 
-class RotatedDataset(Dataset):
-    def __init__(self, dataset, random_rotate=True):
-        super(RotatedDataset, self).__init__()
+class TransformedDataset(Dataset):
+    def __init__(self, dataset, random_rotate=True, random_reflect=True):
+        super(TransformedDataset, self).__init__()
         self.dataset = dataset
         self.random_rotate = random_rotate
+        self.random_reflect = random_reflect
 
-    def _rotate_data(self, angle, image):
+    def _transform_data(self, angle, reflect, image):
         aff = torch.zeros(1, 2, 3)
-        aff[0, :, :2] = rot_mat(angle)
+        ref = ref_mat(reflect)
+        rot = rot_mat(angle)
+        aff[0, :, :2] = ref @ rot
         grid = F.affine_grid(aff, (1, 1) + image.shape, False)
+        # print(ref, rot)
 
         rotated = F.grid_sample(image[None, None, ...], grid, align_corners=False,
                 padding_mode='zeros', mode='bilinear') 
 
-        return rotated[0]
+        # XXX A possible explanation:
+        # grid_sample uses (y, x) cooridnates while we are using (x, y) (Not verified).
+        # Meanwhile we reflect per dim0 while the paper (and ref_mat) reflect per dim1.
+        sth = ((-1) ** reflect) * rot @ ref
+
+        return rotated[0], sth[:, 0]
 
     def __getitem__(self, index):
-        image, label = self.dataset[index].float(), int(self.targets[index])
+        image, label = self.dataset[index]
+        if len(image.shape) == 3:
+            image = image[0]
+        if not torch.is_tensor(image):
+            image = torch.from_numpy(image)
+        image = image.float()
 
         if self.random_rotate:
             angle = np.random.uniform(2 * np.pi)
         else:
             angle = 0.0
+
+        if self.random_reflect:
+            reflect = float(np.random.randint(2))
+        else:
+            reflect = 0.0
         # image = torch.from_numpy(image)# .transpose(0, 1)
-        rotated = self._rotate_data(angle, image)
-        orient = torch.Tensor([np.cos(angle), np.sin(angle)])
+
+        rotated, orient = self._transform_data(angle, reflect, image)
 
         # import matplotlib.pyplot as plt
         # plt.imshow(torch.cat([image, rotated[0]]).cpu())
@@ -54,6 +73,9 @@ class RotatedDataset(Dataset):
         # import pdb; pdb.set_trace()
 
         return rotated, label, orient
+
+    def __len__(self):
+        return len(self.dataset)
 
 class RotatedMNISTDataset(torchvision.datasets.MNIST):
     def __init__(self, root, train, random_rotate=True):

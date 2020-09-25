@@ -37,6 +37,16 @@ def get_parser():
     parser.add_argument('--dataset', type=str)
     return parser
 
+def abs_included_angles(y, l, v):
+    y = F.normalize(y, dim=1)
+    angles = y.mul(v).sum(dim=1).clamp(-1, 1).acos() * 180 / np.pi
+    return angles.squeeze().tolist()
+
+def mask_of_success(y, l, v):
+    _, prediction = torch.max(y.data, 1)
+    mask = prediction == l
+    return mask.squeeze().tolist()
+
 def train(args):
     torch.manual_seed(23)
     torch.cuda.manual_seed(23)
@@ -63,9 +73,13 @@ def train(args):
 
     backbone = Backbone5x5(out_channels=2, conv_func=conv_func, group=group)
     if args.task == 'classification':
-        head = ClassificationHead(backbone.out_type, conv_func)
+        head = ClassificationHead(backbone.out_type, num_classes=10)
+        loss_function = torch.nn.CrossEntropyLoss()
+        eval_function = mask_of_success
     elif args.task == 'regression':
         head = RegressionHead(backbone.out_type, conv_func)
+        loss_function = torch.nn.MSELoss()
+        eval_function = abs_included_angles
     else:
         raise NotImplementedError
 
@@ -98,13 +112,6 @@ def train(args):
             random_rotate=args.rotate_data, random_reflect=args.reflect_data)
     test_loader = torch.utils.data.DataLoader(mnist_test, batch_size=batch_size)
     
-    if args.task == 'classification':
-        loss_function = torch.nn.CrossEntropyLoss()
-    elif args.task == 'regression':
-        loss_function = torch.nn.MSELoss()
-    else:
-        raise NotImplementedError
-
     optimizer = torch.optim.Adam(model.parameters(), lr=5e-5, weight_decay=1e-5)
     
     file_path = None
@@ -123,14 +130,13 @@ def train(args):
             optimizer.zero_grad()
     
             x = x.to(device)
+            l = l.to(device)
             v = v.to(device)
     
             y = model(nn.GeometricTensor(x, backbone.input_type))
             y = y.tensor.flatten(1, -1)
     
-            y = F.normalize(y, dim=1)
-    
-            loss = loss_function(y, v)
+            loss = loss_function(y, l)
     
             loss.backward()
     
@@ -147,27 +153,23 @@ def train(args):
             print('Epoch', end - start)
     
         if epoch % 5 == 0:
-            total = 0
-            error = 0
+            errors = []
             with torch.no_grad():
                 model.eval()
                 for i, (x, l, v) in enumerate(test_loader):
     
                     x = x.to(device)
+                    l = l.to(device)
                     v = v.to(device)
     
                     y = model(nn.GeometricTensor(x, backbone.input_type))
                     y = y.tensor.flatten(1, -1)
-                    y = F.normalize(y, dim=1)
-    
-                    total += l.shape[0]
-    
-                    angles = y.mul(v).sum(dim=1).clamp(-1, 1).acos() * 180 / np.pi
-                    error = angles.sum() + error
-    
-                    loss = loss_function(y, v)
-            error = error/total
-            print(f"epoch {epoch} | tes : {error}, {loss}")
+
+                    res = eval_function(y, l, v)
+                    errors.extend(res)
+
+            error = np.array(errors).mean()
+            print(f"epoch {epoch} | tes : {error}")
             exported = model.export()
             print(file_path)
             if file_path:

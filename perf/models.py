@@ -223,8 +223,29 @@ class Backbone5x5(nn.SequentialModule):
         #     torch.nn.Linear(64, out_channels),
         # )
 
-class ClassificationHead(torch.nn.Module):
-    pass
+class ClassificationHead(nn.SequentialModule):
+    def __init__(self, in_type, num_classes=10):
+        super(ClassificationHead, self).__init__()
+        gspace = in_type.gspace
+        self.add_module('gpool', nn.GroupPooling(in_type))
+
+        # number of output channels
+        # Fully Connected
+        in_type = self.gpool.out_type
+        out_type = nn.FieldType(gspace, 64 * [gspace.trivial_repr])
+        self.add_module('linear1', sscnn.e2cnn.PlainConv(in_type, out_type, kernel_size=1, padding=0, bias=False))
+        self.add_module('relu1', nn.ReLU(out_type, inplace=True))
+        in_type = out_type
+        out_type = nn.FieldType(gspace, num_classes * [gspace.trivial_repr])
+        self.add_module('linear2', sscnn.e2cnn.PlainConv(in_type, out_type, kernel_size=1, padding=0, bias=False))
+
+    # def export(self, x):
+    #     return torch.nn.Sequential(OrderedDict([
+    #         ('gpool', self.gpool.export()),
+    #         ('linear1', self.linear1),
+    #         ('relu1', self.relu1),
+    #         ('linear2', self.linear2),
+    #     ]))
 
 class RegressionHead(nn.SequentialModule):
     def __init__(self, in_type, conv_func):
@@ -236,7 +257,7 @@ class RegressionHead(nn.SequentialModule):
         # number of output channels
         # Fully Connected
         in_type = in_type
-        out_type = nn.FieldType(gspace, 32 * [gspace.regular_repr])
+        out_type = nn.FieldType(gspace, 16 * [gspace.regular_repr])
         self.add_module('block1', nn.SequentialModule(
             conv_func(in_type, out_type, kernel_size=1, padding=0, bias=False),
             nn.ReLU(out_type, inplace=True)
