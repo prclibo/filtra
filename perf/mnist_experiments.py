@@ -74,11 +74,13 @@ def train(args):
     backbone = Backbone5x5(out_channels=2, conv_func=conv_func, group=group)
     if args.task == 'classification':
         head = ClassificationHead(backbone.out_type, num_classes=10)
-        loss_function = torch.nn.CrossEntropyLoss()
+        cross_entropy_loss = torch.nn.CrossEntropyLoss()
+        loss_function = lambda y, l, v: cross_entropy_loss(y, l)
         eval_function = mask_of_success
     elif args.task == 'regression':
         head = RegressionHead(backbone.out_type, conv_func)
-        loss_function = torch.nn.MSELoss()
+        mse_loss = torch.nn.MSELoss()
+        loss_function = lambda y, l, v: mse_loss(y, v)
         eval_function = abs_included_angles
     else:
         raise NotImplementedError
@@ -136,7 +138,7 @@ def train(args):
             y = model(nn.GeometricTensor(x, backbone.input_type))
             y = y.tensor.flatten(1, -1)
     
-            loss = loss_function(y, l)
+            loss = loss_function(y, l, v)
     
             loss.backward()
     
