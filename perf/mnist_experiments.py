@@ -20,7 +20,8 @@ import sscnn.e2cnn
 import numpy as np
 
 from mnist_rot_dataset import RotatedMNISTDataset, TransformedDataset
-from models import C8Backbone3x3, Backbone5x5, ClassificationHead, RegressionHead
+from models import Backbone5x5, ClassificationHead, RegressionHead
+from e2wrn import Wide_ResNet
 
 from functools import partial
 
@@ -71,7 +72,18 @@ def train(args):
     else:
         raise NotImplementedError
 
-    backbone = Backbone5x5(out_channels=2, conv_func=conv_func, group=group)
+    if args.dataset == 'MNIST':
+        dataset_func = partial(torchvision.datasets.MNIST,
+                transform=transforms.ToTensor())
+        backbone = Backbone5x5(conv_func=conv_func, group=group)
+    elif args.dataset == 'CIFAR10':
+        dataset_func = partial(torchvision.datasets.CIFAR10,
+                transform=transforms.ToTensor())
+        backbone = Wide_ResNet(16, 8, 0.3, initial_stride=2,
+                N=args.rotation, f=(args.reflection == 2), r=0, conv_func=conv_func)
+    else:
+        raise NotImplementedError
+
     if args.task == 'classification':
         head = ClassificationHead(backbone.out_type, num_classes=10)
         cross_entropy_loss = torch.nn.CrossEntropyLoss()
@@ -82,20 +94,6 @@ def train(args):
         mse_loss = torch.nn.MSELoss()
         loss_function = lambda y, l, v: mse_loss(y, v)
         eval_function = abs_included_angles
-    else:
-        raise NotImplementedError
-
-    if args.dataset == 'MNIST':
-        dataset_func = partial(torchvision.datasets.MNIST,
-                transform=transforms.ToTensor())
-    elif args.dataset == 'CIFAR10':
-        dataset_func = partial(torchvision.datasets.CIFAR10,
-                transform=transforms.Compose([
-                    transforms.Grayscale(num_output_channels=1),
-                    transforms.ToTensor(),
-                    transforms.Normalize(mean=[0.5], std=[0.5])
-                ])
-        )
     else:
         raise NotImplementedError
     
@@ -172,13 +170,13 @@ def train(args):
 
             error = np.array(errors).mean()
             print(f"epoch {epoch} | tes : {error}")
-            exported = model.export()
-            print(file_path)
-            if file_path:
-                print('removing')
-                os.remove(file_path)
-            file_path = f'./orient_state_{conv_func.__name__}.{type(group).__name__}.{error}.pth'
-            torch.save(exported.state_dict(), file_path)
+            # exported = model.export()
+            # print(file_path)
+            # if file_path:
+            #     print('removing')
+            #     os.remove(file_path)
+            # file_path = f'./orient_state_{conv_func.__name__}.{type(group).__name__}.{error}.pth'
+            # torch.save(exported.state_dict(), file_path)
         
 
 if __name__ == '__main__':

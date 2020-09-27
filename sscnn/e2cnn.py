@@ -65,7 +65,6 @@ class SSConv(EquivariantModule):
         elif isinstance(in_type.gspace, e2cnn.gspaces.FlipRot2dOnR2):
             assert isinstance(in_type.gspace.fibergroup, e2cnn.group.DihedralGroup)
             group = (2, in_type.gspace.fibergroup.rotation_order)
-            print('group', group)
         else:
             raise NotImplementedError
 
@@ -74,7 +73,6 @@ class SSConv(EquivariantModule):
         self.out_type = out_type
         in_type, self.in_mult, self.in_inner_dim = convert_field_type(in_type)
         out_type, self.out_mult, self.out_inner_dim = convert_field_type(out_type)
-        print('type', in_type, out_type)
 
         in_sel = type_to_selection(in_type, group)
         out_sel = type_to_selection(out_type, group)

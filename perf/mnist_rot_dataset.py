@@ -6,6 +6,9 @@ from sscnn.utils import *
 
 DATA_FOLDER='/data/'
 
+from sscnn.rotater import LARGE
+
+'''
 def batch_rotate(images, angles):
     N, C, H, W = images.shape
     aff = images.new_zeros(N, 2, 3)
@@ -18,6 +21,7 @@ def batch_rotate(images, angles):
     rotated = F.grid_sample(images, grid, align_corners=False, 
             padding_mode='zeros', mode='bilinear') 
     return rotated
+'''
 
 class TransformedDataset(Dataset):
     def __init__(self, dataset, random_rotate=True, random_reflect=True):
@@ -27,14 +31,19 @@ class TransformedDataset(Dataset):
         self.random_reflect = random_reflect
 
     def _transform_data(self, angle, reflect, image):
+        assert len(image.shape) == 3
         aff = torch.zeros(1, 2, 3)
         ref = ref_mat(reflect)
         rot = rot_mat(angle)
         aff[0, :, :2] = ref @ rot
-        grid = F.affine_grid(aff, (1, 1) + image.shape, False)
+        grid = F.affine_grid(aff, (1, 1) + image.shape[-2:], False)
         # print(ref, rot)
 
-        rotated = F.grid_sample(image[None, None, ...], grid, align_corners=False,
+        # N x H x W
+        out_mask = (grid.norm(dim=-1) > 1).unsqueeze(-1)
+        grid.masked_fill_(out_mask, LARGE)
+
+        rotated = F.grid_sample(image[None, ...], grid, align_corners=False,
                 padding_mode='zeros', mode='bilinear') 
 
         # XXX A possible explanation:
@@ -42,12 +51,18 @@ class TransformedDataset(Dataset):
         # Meanwhile we reflect per dim0 while the paper (and ref_mat) reflect per dim1.
         sth = ((-1) ** reflect) * rot @ ref
 
+        # import matplotlib.pyplot as plt
+        # plt.imshow(torch.cat([image, rotated[0, 0]]).cpu())
+        # plt.show()
+
+        # import pdb; pdb.set_trace()
+
         return rotated[0], sth[:, 0]
 
     def __getitem__(self, index):
         image, label = self.dataset[index]
-        if len(image.shape) == 3:
-            image = image[0]
+        if len(image.shape) == 2:
+            image = image.unsqueeze(0)
         if not torch.is_tensor(image):
             image = torch.from_numpy(image)
         image = image.float()
@@ -64,13 +79,6 @@ class TransformedDataset(Dataset):
         # image = torch.from_numpy(image)# .transpose(0, 1)
 
         rotated, orient = self._transform_data(angle, reflect, image)
-
-        # import matplotlib.pyplot as plt
-        # plt.imshow(torch.cat([image, rotated[0]]).cpu())
-        # plt.show()
-        # print(orient)
-
-        # import pdb; pdb.set_trace()
 
         return rotated, label, orient
 
