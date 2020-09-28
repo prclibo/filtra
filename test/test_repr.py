@@ -37,11 +37,17 @@ class ReprTest(unittest.TestCase):
         print(regular_mat0)
         print(regular_mat1)
 
+        import pdb; pdb.set_trace()
+
+        import matplotlib.pyplot as plt
+        plt.imshow(regular_mat1, cmap=plt.cm.RdYlGn, vmin=-1, vmax=1)
+        plt.show()
+        import pdb; pdb.set_trace()
         
         
 
 t = ReprTest()
 t.setUp()
-# t.test_comp_dctmat()
-t.test_regular_mat()
+t.test_comp_dctmat()
+# t.test_regular_mat()
 
