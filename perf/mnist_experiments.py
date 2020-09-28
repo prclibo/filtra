@@ -73,12 +73,42 @@ def train(args):
         raise NotImplementedError
 
     if args.dataset == 'MNIST':
-        dataset_func = partial(torchvision.datasets.MNIST,
-                transform=transforms.ToTensor())
+        train_dataset = TransformedDataset(
+            torchvision.datasets.MNIST(
+                '.', train=True, download=True, transform=transforms.ToTensor(),
+            ),
+            random_rotate=args.rotate_data, random_reflect=args.reflect_data,
+        )
+        test_dataset = TransformedDataset(
+            torchvision.datasets.MNIST(
+                '.', train=True, download=True, transform=transforms.ToTensor(),
+            ),
+            random_rotate=args.rotate_data, random_reflect=args.reflect_data,
+        )
         backbone = Backbone5x5(conv_func=conv_func, group=group, in_channels=1)
     elif args.dataset == 'CIFAR10':
-        dataset_func = partial(torchvision.datasets.CIFAR10,
-                transform=transforms.ToTensor())
+        train_dataset = TransformedDataset(
+            torchvision.datasets.CIFAR10(
+                '.', train=True, download=True,
+                transform=transforms.Compose([
+                    transforms.RandomCrop(32, padding=4),
+                    transforms.RandomHorizontalFlip(),
+                    transforms.ToTensor(),
+                    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+                ])
+            ),
+            random_rotate=args.rotate_data, random_reflect=args.reflect_data,
+        )
+        test_dataset = TransformedDataset(
+            torchvision.datasets.CIFAR10(
+                '.', train=True, download=True,
+                transform=transforms.Compose([
+                    transforms.ToTensor(),
+                    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+                ])
+            ),
+            random_rotate=args.rotate_data, random_reflect=args.reflect_data,
+        )
         # backbone = Wide_ResNet(16, 8, 0.3, initial_stride=2,
         #         N=args.rotation, f=(args.reflection == 2), r=0, conv_func=conv_func)
         backbone = Backbone5x5(conv_func=conv_func, group=group, in_channels=3)
@@ -98,20 +128,13 @@ def train(args):
     else:
         raise NotImplementedError
     
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size)
+
     model = nn.SequentialModule(OrderedDict([
         ('backbone', backbone), ('head', head)
     ]))
     model = model.to(device)
-    
-    mnist_train = TransformedDataset(
-            dataset_func('.', train=True, download=True),
-            random_rotate=args.rotate_data, random_reflect=args.reflect_data)
-    train_loader = torch.utils.data.DataLoader(mnist_train, batch_size=batch_size, shuffle=True)
-    
-    mnist_test = TransformedDataset(
-            dataset_func('.', train=False, download=True),
-            random_rotate=args.rotate_data, random_reflect=args.reflect_data)
-    test_loader = torch.utils.data.DataLoader(mnist_test, batch_size=batch_size)
     
     # optimizer = torch.optim.Adam(model.parameters(), lr=5e-5, weight_decay=1e-5)
     optimizer = torch.optim.SGD(model.parameters(), lr=1e-2)
