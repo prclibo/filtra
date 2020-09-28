@@ -75,12 +75,13 @@ def train(args):
     if args.dataset == 'MNIST':
         dataset_func = partial(torchvision.datasets.MNIST,
                 transform=transforms.ToTensor())
-        backbone = Backbone5x5(conv_func=conv_func, group=group)
+        backbone = Backbone5x5(conv_func=conv_func, group=group, in_channels=1)
     elif args.dataset == 'CIFAR10':
         dataset_func = partial(torchvision.datasets.CIFAR10,
                 transform=transforms.ToTensor())
-        backbone = Wide_ResNet(16, 8, 0.3, initial_stride=2,
-                N=args.rotation, f=(args.reflection == 2), r=0, conv_func=conv_func)
+        # backbone = Wide_ResNet(16, 8, 0.3, initial_stride=2,
+        #         N=args.rotation, f=(args.reflection == 2), r=0, conv_func=conv_func)
+        backbone = Backbone5x5(conv_func=conv_func, group=group, in_channels=3)
     else:
         raise NotImplementedError
 
@@ -112,10 +113,13 @@ def train(args):
             random_rotate=args.rotate_data, random_reflect=args.reflect_data)
     test_loader = torch.utils.data.DataLoader(mnist_test, batch_size=batch_size)
     
-    optimizer = torch.optim.Adam(model.parameters(), lr=5e-5, weight_decay=1e-5)
+    # optimizer = torch.optim.Adam(model.parameters(), lr=5e-5, weight_decay=1e-5)
+    optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.2)
     
     file_path = None
-    for epoch in range(41):
+    f = open('./a.txt', 'w')
+    for epoch in range(60):
         model.train()
     
         if device == 'cuda':
@@ -170,6 +174,7 @@ def train(args):
 
             error = np.array(errors).mean()
             print(f"epoch {epoch} | tes : {error}")
+            f.write(f"epoch {epoch} | tes : {error}")
             # exported = model.export()
             # print(file_path)
             # if file_path:
