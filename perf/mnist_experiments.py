@@ -106,7 +106,7 @@ def train(args):
     mnist_train = TransformedDataset(
             dataset_func('.', train=True, download=True),
             random_rotate=args.rotate_data, random_reflect=args.reflect_data)
-    train_loader = torch.utils.data.DataLoader(mnist_train, batch_size=batch_size)
+    train_loader = torch.utils.data.DataLoader(mnist_train, batch_size=batch_size, shuffle=True)
     
     mnist_test = TransformedDataset(
             dataset_func('.', train=False, download=True),
@@ -114,8 +114,8 @@ def train(args):
     test_loader = torch.utils.data.DataLoader(mnist_test, batch_size=batch_size)
     
     # optimizer = torch.optim.Adam(model.parameters(), lr=5e-5, weight_decay=1e-5)
-    optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.2)
+    optimizer = torch.optim.SGD(model.parameters(), lr=1e-2)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
     
     file_path = None
     f = open('./a.txt', 'w')
@@ -147,6 +147,10 @@ def train(args):
             optimizer.step()
             # if i > 50:
             #     break
+
+        scheduler.step()
+        for param_group in optimizer.param_groups:
+            print('lr = ', param_group['lr'])
     
         if device == 'cuda':
             end.record()

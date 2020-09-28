@@ -24,7 +24,7 @@ def batch_rotate(images, angles):
 '''
 
 class TransformedDataset(Dataset):
-    def __init__(self, dataset, random_rotate=True, random_reflect=True):
+    def __init__(self, dataset, random_rotate=True, random_reflect=True, zag_aug=False):
         super(TransformedDataset, self).__init__()
         self.dataset = dataset
         self.random_rotate = random_rotate
@@ -70,15 +70,20 @@ class TransformedDataset(Dataset):
         if self.random_rotate:
             angle = np.random.uniform(2 * np.pi)
         else:
-            angle = 0.0
+            angle = 0
 
         if self.random_reflect:
             reflect = float(np.random.randint(2))
         else:
-            reflect = 0.0
+            reflect = 0
+
+
         # image = torch.from_numpy(image)# .transpose(0, 1)
 
-        rotated, orient = self._transform_data(angle, reflect, image)
+        if angle == 0 and reflect == 0:
+            rotated, orient = image, torch.Tensor([1., 0.])
+        else:
+            rotated, orient = self._transform_data(angle, reflect, image)
 
         return rotated, label, orient
 
