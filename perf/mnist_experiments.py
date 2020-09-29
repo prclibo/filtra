@@ -34,6 +34,7 @@ def get_parser():
     parser.add_argument('--rotate_data', action='store_true')
     parser.add_argument('--reflect_data', action='store_true')
     parser.add_argument('--conv', type=str)
+    parser.add_argument('--backbone', type=str)
     parser.add_argument('--task', type=str)
     parser.add_argument('--dataset', type=str)
     return parser
@@ -101,7 +102,7 @@ def train(args):
         )
         test_dataset = TransformedDataset(
             torchvision.datasets.CIFAR10(
-                '.', train=True, download=True,
+                '.', train=False, download=True,
                 transform=transforms.Compose([
                     transforms.ToTensor(),
                     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
@@ -113,6 +114,32 @@ def train(args):
                 N=args.rotation, f=(args.reflection == 2), r=0, conv_func=conv_func,
                 fixparams=False)
         # backbone = Backbone5x5(conv_func=conv_func, group=group, in_channels=3)
+    elif args.dataset == 'CIFAR100':
+        train_dataset = TransformedDataset(
+            torchvision.datasets.CIFAR100(
+                '.', train=True, download=True,
+                transform=transforms.Compose([
+                    transforms.RandomCrop(32, padding=4),
+                    transforms.RandomHorizontalFlip(),
+                    transforms.ToTensor(),
+                    transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
+                ])
+            ),
+            random_rotate=args.rotate_data, random_reflect=args.reflect_data,
+        )
+        test_dataset = TransformedDataset(
+            torchvision.datasets.CIFAR100(
+                '.', train=False, download=True,
+                transform=transforms.Compose([
+                    transforms.ToTensor(),
+                    transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
+                ])
+            ),
+            random_rotate=args.rotate_data, random_reflect=args.reflect_data,
+        )
+        backbone = Wide_ResNet(16, 8, 0.3, initial_stride=2,
+                N=args.rotation, f=(args.reflection == 2), r=0, conv_func=conv_func,
+                fixparams=False)
     else:
         raise NotImplementedError
 
