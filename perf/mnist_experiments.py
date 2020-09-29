@@ -109,9 +109,10 @@ def train(args):
             ),
             random_rotate=args.rotate_data, random_reflect=args.reflect_data,
         )
-        # backbone = Wide_ResNet(16, 8, 0.3, initial_stride=2,
-        #         N=args.rotation, f=(args.reflection == 2), r=0, conv_func=conv_func)
-        backbone = Backbone5x5(conv_func=conv_func, group=group, in_channels=3)
+        backbone = Wide_ResNet(16, 8, 0.3, initial_stride=2,
+                N=args.rotation, f=(args.reflection == 2), r=0, conv_func=conv_func,
+                fixparams=False)
+        # backbone = Backbone5x5(conv_func=conv_func, group=group, in_channels=3)
     else:
         raise NotImplementedError
 
@@ -137,12 +138,12 @@ def train(args):
     model = model.to(device)
     
     # optimizer = torch.optim.Adam(model.parameters(), lr=5e-5, weight_decay=1e-5)
-    optimizer = torch.optim.SGD(model.parameters(), lr=1e-2)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
+    optimizer = torch.optim.SGD(model.parameters(), lr=5e-2)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.2)
     
     file_path = None
     f = open('./a.txt', 'w')
-    for epoch in range(60):
+    for epoch in range(160):
         model.train()
     
         if device == 'cuda':
