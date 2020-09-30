@@ -82,11 +82,11 @@ def train(args):
         )
         test_dataset = TransformedDataset(
             torchvision.datasets.MNIST(
-                '.', train=True, download=True, transform=transforms.ToTensor(),
+                '.', train=False, download=True, transform=transforms.ToTensor(),
             ),
             random_rotate=args.rotate_data, random_reflect=args.reflect_data,
         )
-        backbone = Backbone5x5(conv_func=conv_func, group=group, in_channels=1)
+        in_channels = 1
     elif args.dataset == 'CIFAR10':
         train_dataset = TransformedDataset(
             torchvision.datasets.CIFAR10(
@@ -110,10 +110,7 @@ def train(args):
             ),
             random_rotate=args.rotate_data, random_reflect=args.reflect_data,
         )
-        backbone = Wide_ResNet(16, 8, 0.3, initial_stride=2,
-                N=args.rotation, f=(args.reflection == 2), r=0, conv_func=conv_func,
-                fixparams=False)
-        # backbone = Backbone5x5(conv_func=conv_func, group=group, in_channels=3)
+        in_channels = 3
     elif args.dataset == 'CIFAR100':
         train_dataset = TransformedDataset(
             torchvision.datasets.CIFAR100(
@@ -137,9 +134,21 @@ def train(args):
             ),
             random_rotate=args.rotate_data, random_reflect=args.reflect_data,
         )
+    else:
+        raise NotImplementedError
+
+    if args.backbone == 'B5':
+        backbone = Backbone5x5(conv_func=conv_func, group=group, in_channels=in_channels)
+        max_epochs = 60
+        base_lr = 1e-2
+        step = 20
+    elif args.backbone == 'WRN':
         backbone = Wide_ResNet(16, 8, 0.3, initial_stride=2,
                 N=args.rotation, f=(args.reflection == 2), r=0, conv_func=conv_func,
                 fixparams=False)
+        max_epochs = 220
+        base_lr = 3e-2
+        step = 80
     else:
         raise NotImplementedError
 
@@ -164,13 +173,22 @@ def train(args):
     ]))
     model = model.to(device)
     
-    # optimizer = torch.optim.Adam(model.parameters(), lr=5e-5, weight_decay=1e-5)
-    optimizer = torch.optim.SGD(model.parameters(), lr=5e-2)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.2)
+    if args.conv == 'R2Conv':
+        optimizer = torch.optim.SGD(model.parameters(), lr=base_lr, momentum=0.9, weight_decay=5e-4)
+    elif args.conv == 'SSConv':
+        optimizer = torch.optim.SGD(model.parameters(), lr=base_lr / 2, momentum=0.9, weight_decay=5e-4)
+    elif args.conv == 'PlainConv':
+        optimizer = torch.optim.SGD(model.parameters(), lr=base_lr, momentum=0.9, weight_decay=5e-4)
+    else:
+        raise NotImplementedError
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step, gamma=0.2)
     
-    file_path = None
-    f = open('./a.txt', 'w')
-    for epoch in range(160):
+    file_name = '_'.join([str(_) for _ in args.__dict__.values()])
+    ckpt_name = file_name + '.pth'
+    log_name = file_name + '.txt'
+    log_file = open(log_name, 'w')
+
+    for epoch in range(max_epochs):
         model.train()
     
         if device == 'cuda':
@@ -201,6 +219,7 @@ def train(args):
 
         scheduler.step()
         for param_group in optimizer.param_groups:
+            lr = param_group['lr']
             print('lr = ', param_group['lr'])
     
         if device == 'cuda':
@@ -229,14 +248,10 @@ def train(args):
 
             error = np.array(errors).mean()
             print(f"epoch {epoch} | tes : {error}")
-            f.write(f"epoch {epoch} | tes : {error}")
+            log_file.write(f"epoch {epoch} | acc : {error} | lr : {lr}\n")
+
             # exported = model.export()
-            # print(file_path)
-            # if file_path:
-            #     print('removing')
-            #     os.remove(file_path)
-            # file_path = f'./orient_state_{conv_func.__name__}.{type(group).__name__}.{error}.pth'
-            # torch.save(exported.state_dict(), file_path)
+            # torch.save(exported.state_dict(), ckpt_name)
         
 
 if __name__ == '__main__':
