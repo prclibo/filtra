@@ -87,6 +87,37 @@ def train(args):
             random_rotate=args.rotate_data, random_reflect=args.reflect_data,
         )
         in_channels = 1
+        num_classes = 10
+    elif args.dataset == 'KMNIST':
+        train_dataset = TransformedDataset(
+            torchvision.datasets.KMNIST(
+                '.', train=True, download=True, transform=transforms.ToTensor(),
+            ),
+            random_rotate=args.rotate_data, random_reflect=args.reflect_data,
+        )
+        test_dataset = TransformedDataset(
+            torchvision.datasets.KMNIST(
+                '.', train=False, download=True, transform=transforms.ToTensor(),
+            ),
+            random_rotate=args.rotate_data, random_reflect=args.reflect_data,
+        )
+        in_channels = 1
+        num_classes = 10
+    elif args.dataset == 'EMNIST':
+        train_dataset = TransformedDataset(
+            torchvision.datasets.EMNIST(
+                '.', split='balanced', train=True, download=True, transform=transforms.ToTensor(),
+            ),
+            random_rotate=args.rotate_data, random_reflect=args.reflect_data,
+        )
+        test_dataset = TransformedDataset(
+            torchvision.datasets.EMNIST(
+                '.', split='balanced', train=False, download=True, transform=transforms.ToTensor(),
+            ),
+            random_rotate=args.rotate_data, random_reflect=args.reflect_data,
+        )
+        in_channels = 1
+        num_classes = 50
     elif args.dataset == 'CIFAR10':
         train_dataset = TransformedDataset(
             torchvision.datasets.CIFAR10(
@@ -111,6 +142,7 @@ def train(args):
             random_rotate=args.rotate_data, random_reflect=args.reflect_data,
         )
         in_channels = 3
+        num_classes = 10
     elif args.dataset == 'CIFAR100':
         train_dataset = TransformedDataset(
             torchvision.datasets.CIFAR100(
@@ -134,6 +166,7 @@ def train(args):
             ),
             random_rotate=args.rotate_data, random_reflect=args.reflect_data,
         )
+        num_classes = 100
     else:
         raise NotImplementedError
 
@@ -156,7 +189,7 @@ def train(args):
         raise NotImplementedError
 
     if args.task == 'classification':
-        head = ClassificationHead(backbone.out_type, num_classes=10)
+        head = ClassificationHead(backbone.out_type, num_classes=num_classes)
         cross_entropy_loss = torch.nn.CrossEntropyLoss()
         loss_function = lambda y, l, v: cross_entropy_loss(y, l)
         eval_function = mask_of_success
@@ -190,14 +223,15 @@ def train(args):
         optimizer = torch.optim.Adam(model.parameters(), lr=5e-5, weight_decay=1e-5)
         scheduler = None
     else:
-        optimizer = torch.optim.Adam(model.parameters(), lr=2e-2, weight_decay=1e-5)
+        optimizer = torch.optim.Adam(model.parameters(), lr=2e-4, weight_decay=1e-5)
+        scheduler = None
     
     file_name = '_'.join([str(_) for _ in args.__dict__.values()])
     ckpt_name = file_name + '.pth'
     log_name = file_name + '.txt'
     log_file = open(log_name, 'w')
 
-    for epoch in range(max_epochs):
+    for epoch in range(max_epochs + 2):
         model.train()
     
         if device == 'cuda':
