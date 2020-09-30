@@ -141,14 +141,17 @@ def train(args):
         backbone = Backbone5x5(conv_func=conv_func, group=group, in_channels=in_channels)
         max_epochs = 60
         base_lr = 1e-2
-        step = 20
+        gamma = 0.1
+        milestones = [20, 35, 45]
+
     elif args.backbone == 'WRN':
         backbone = Wide_ResNet(16, 8, 0.3, initial_stride=2,
                 N=args.rotation, f=(args.reflection == 2), r=0, conv_func=conv_func,
                 fixparams=False)
-        max_epochs = 220
+        max_epochs = 160
         base_lr = 3e-2
-        step = 80
+        gamma = 0.2
+        milestones = [50, 80, 110]
     else:
         raise NotImplementedError
 
@@ -176,12 +179,18 @@ def train(args):
     if args.conv == 'R2Conv':
         optimizer = torch.optim.SGD(model.parameters(), lr=base_lr, momentum=0.9, weight_decay=5e-4)
     elif args.conv == 'SSConv':
-        optimizer = torch.optim.SGD(model.parameters(), lr=base_lr / 2, momentum=0.9, weight_decay=5e-4)
+        optimizer = torch.optim.SGD(model.parameters(), lr=base_lr / 4, momentum=0.9, weight_decay=5e-4)
     elif args.conv == 'PlainConv':
         optimizer = torch.optim.SGD(model.parameters(), lr=base_lr, momentum=0.9, weight_decay=5e-4)
     else:
         raise NotImplementedError
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step, gamma=0.2)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones, gamma=gamma)
+
+    if args.dataset == 'MNIST':
+        optimizer = torch.optim.Adam(model.parameters(), lr=5e-5, weight_decay=1e-5)
+        scheduler = None
+    else:
+        optimizer = torch.optim.Adam(model.parameters(), lr=2e-2, weight_decay=1e-5)
     
     file_name = '_'.join([str(_) for _ in args.__dict__.values()])
     ckpt_name = file_name + '.pth'
@@ -217,7 +226,8 @@ def train(args):
             # if i > 50:
             #     break
 
-        scheduler.step()
+        if scheduler:
+            scheduler.step()
         for param_group in optimizer.param_groups:
             lr = param_group['lr']
             print('lr = ', param_group['lr'])
@@ -249,6 +259,7 @@ def train(args):
             error = np.array(errors).mean()
             print(f"epoch {epoch} | tes : {error}")
             log_file.write(f"epoch {epoch} | acc : {error} | lr : {lr}\n")
+            log_file.flush()
 
             # exported = model.export()
             # torch.save(exported.state_dict(), ckpt_name)
