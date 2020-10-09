@@ -148,7 +148,7 @@ def train(args):
         backbone = Wide_ResNet(16, 8, 0.3, initial_stride=2,
                 N=args.rotation, f=(args.reflection == 2), r=0, conv_func=conv_func,
                 fixparams=False)
-        max_epochs = 160
+        max_epochs = 260
         base_lr = 3e-2
         gamma = 0.2
         milestones = [50, 80, 110]
@@ -205,7 +205,7 @@ def train(args):
         for i, (x, l, v) in enumerate(train_loader):
             
             optimizer.zero_grad()
-    
+
             x = x.to(device)
             l = l.to(device)
             v = v.to(device)

@@ -191,7 +191,7 @@ def train(args):
         scheduler = None
     else:
         optimizer = torch.optim.Adam(model.parameters(), lr=2e-4, weight_decay=1e-5)
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[50, 80, 100], gamma=0.2)
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[50, 90, 120, 150], gamma=0.2)
     
     file_name = '_'.join([str(_) for _ in args.__dict__.values()])
     ckpt_name = file_name + '.pth'
