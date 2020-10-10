@@ -188,6 +188,32 @@ def train(args):
             disk_masked=(args.task == 'regression'),
         )
         num_classes = 100
+    elif args.dataset == 'STL10':
+        train_dataset = TransformedDataset(
+            torchvision.datasets.STL10(
+                '.', split='train', download=True,
+                transform=transforms.Compose([
+                    transforms.RandomCrop(96, padding=12),
+                    transforms.RandomHorizontalFlip(),
+                    transforms.ToTensor(),
+                ])
+            ),
+            random_rotate=args.rotate_train, random_reflect=args.reflect_train,
+            disk_masked=(args.task == 'regression'),
+        )
+        test_dataset = TransformedDataset(
+            torchvision.datasets.STL10(
+                '.', split='test', download=True,
+                transform=transforms.Compose([
+                    transforms.ToTensor(),
+                ])
+            ),
+            random_rotate=args.rotate_test, random_reflect=args.reflect_test,
+            disk_masked=(args.task == 'regression'),
+        )
+        num_classes = 50
+        batch_size = 12
+        in_channels = 3
     else:
         raise NotImplementedError
 
@@ -226,7 +252,10 @@ def train(args):
         scheduler = None
         max_epochs = 60
     elif args.backbone == 'WRN': # elif args.dataset == 'CIFAR10' or args.dataset == 'STL10':
-        base_lr = 2e-2
+        if args.dataset == 'STL10':
+            base_lr = 2e-3
+        else:
+            base_lr = 1e-2
         optimizer = torch.optim.SGD(model.parameters(), lr=base_lr, momentum=0.9, weight_decay=5e-4)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=45, gamma=0.2)
         max_epochs = 260
@@ -262,8 +291,14 @@ def train(args):
             loss = loss_function(y, l, v)
     
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 10)
     
+            # nv =  [(n, v.abs().max().item()) for (n, v) in model.named_parameters()]
+            # imax = max(range(len(nv)), key=lambda x: nv[x][1])
+            # print(loss.item(), nv[imax])
+
             optimizer.step()
+            
             # if i > 50:
             #     break
 
@@ -302,6 +337,7 @@ def train(args):
             log_file.write(f"epoch {epoch} | acc : {error} | lr : {lr}\n")
             log_file.flush()
 
+            # import pdb; pdb.set_trace()
             # exported = model.export()
             # torch.save(exported.state_dict(), ckpt_name)
         
