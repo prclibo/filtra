@@ -31,10 +31,8 @@ def get_parser():
     parser = argparse.ArgumentParser(description='...')
     parser.add_argument('--reflection', type=int, default=1)
     parser.add_argument('--rotation', type=int)
-    parser.add_argument('--rotate_train', action='store_true')
-    parser.add_argument('--reflect_train', action='store_true')
-    parser.add_argument('--rotate_test', action='store_true')
-    parser.add_argument('--reflect_test', action='store_true')
+    parser.add_argument('--rotate_data', action='store_true')
+    parser.add_argument('--reflect_data', action='store_true')
     parser.add_argument('--conv', type=str)
     parser.add_argument('--backbone', type=str)
     parser.add_argument('--task', type=str)
@@ -80,61 +78,15 @@ def train(args):
             torchvision.datasets.MNIST(
                 '.', train=True, download=True, transform=transforms.ToTensor(),
             ),
-            random_rotate=args.rotate_train, random_reflect=args.reflect_train,
+            random_rotate=args.rotate_data, random_reflect=args.reflect_data,
         )
         test_dataset = TransformedDataset(
             torchvision.datasets.MNIST(
                 '.', train=False, download=True, transform=transforms.ToTensor(),
             ),
-            random_rotate=args.rotate_test, random_reflect=args.reflect_test,
+            random_rotate=args.rotate_data, random_reflect=args.reflect_data,
         )
         in_channels = 1
-        num_classes = 10
-    elif args.dataset == 'KMNIST':
-        train_dataset = TransformedDataset(
-            torchvision.datasets.KMNIST(
-                '.', train=True, download=True, transform=transforms.ToTensor(),
-            ),
-            random_rotate=args.rotate_train, random_reflect=args.reflect_train,
-        )
-        test_dataset = TransformedDataset(
-            torchvision.datasets.KMNIST(
-                '.', train=False, download=True, transform=transforms.ToTensor(),
-            ),
-            random_rotate=args.rotate_test, random_reflect=args.reflect_test,
-        )
-        in_channels = 1
-        num_classes = 10
-    elif args.dataset == 'EMNIST':
-        train_dataset = TransformedDataset(
-            torchvision.datasets.EMNIST(
-                '.', split='balanced', train=True, download=True, transform=transforms.ToTensor(),
-            ),
-            random_rotate=args.rotate_train, random_reflect=args.reflect_train,
-        )
-        test_dataset = TransformedDataset(
-            torchvision.datasets.EMNIST(
-                '.', split='balanced', train=False, download=True, transform=transforms.ToTensor(),
-            ),
-            random_rotate=args.rotate_test, random_reflect=args.reflect_test,
-        )
-        in_channels = 1
-        num_classes = 50
-    elif args.dataset == 'FMNIST':
-        train_dataset = TransformedDataset(
-            torchvision.datasets.FashionMNIST(
-                '.', train=True, download=True, transform=transforms.ToTensor(),
-            ),
-            random_rotate=args.rotate_train, random_reflect=args.reflect_train,
-        )
-        test_dataset = TransformedDataset(
-            torchvision.datasets.FashionMNIST(
-                '.', train=False, download=True, transform=transforms.ToTensor(),
-            ),
-            random_rotate=args.rotate_test, random_reflect=args.reflect_test,
-        )
-        in_channels = 1
-        num_classes = 10
     elif args.dataset == 'CIFAR10':
         train_dataset = TransformedDataset(
             torchvision.datasets.CIFAR10(
@@ -146,8 +98,7 @@ def train(args):
                     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
                 ])
             ),
-            random_rotate=args.rotate_train, random_reflect=args.reflect_train,
-            disk_masked=(args.task == 'regression'),
+            random_rotate=args.rotate_data, random_reflect=args.reflect_data,
         )
         test_dataset = TransformedDataset(
             torchvision.datasets.CIFAR10(
@@ -157,11 +108,9 @@ def train(args):
                     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
                 ])
             ),
-            random_rotate=args.rotate_test, random_reflect=args.reflect_test,
-            disk_masked=(args.task == 'regression'),
+            random_rotate=args.rotate_data, random_reflect=args.reflect_data,
         )
         in_channels = 3
-        num_classes = 10
     elif args.dataset == 'CIFAR100':
         train_dataset = TransformedDataset(
             torchvision.datasets.CIFAR100(
@@ -173,8 +122,7 @@ def train(args):
                     transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
                 ])
             ),
-            random_rotate=args.rotate_train, random_reflect=args.reflect_train,
-            disk_masked=(args.task == 'regression'),
+            random_rotate=args.rotate_data, random_reflect=args.reflect_data,
         )
         test_dataset = TransformedDataset(
             torchvision.datasets.CIFAR100(
@@ -184,50 +132,31 @@ def train(args):
                     transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
                 ])
             ),
-            random_rotate=args.rotate_test, random_reflect=args.reflect_test,
-            disk_masked=(args.task == 'regression'),
+            random_rotate=args.rotate_data, random_reflect=args.reflect_data,
         )
-        num_classes = 100
-    elif args.dataset == 'STL10':
-        train_dataset = TransformedDataset(
-            torchvision.datasets.STL10(
-                '.', split='train', download=True,
-                transform=transforms.Compose([
-                    transforms.RandomCrop(96, padding=12),
-                    transforms.RandomHorizontalFlip(),
-                    transforms.ToTensor(),
-                ])
-            ),
-            random_rotate=args.rotate_train, random_reflect=args.reflect_train,
-            disk_masked=(args.task == 'regression'),
-        )
-        test_dataset = TransformedDataset(
-            torchvision.datasets.STL10(
-                '.', split='test', download=True,
-                transform=transforms.Compose([
-                    transforms.ToTensor(),
-                ])
-            ),
-            random_rotate=args.rotate_test, random_reflect=args.reflect_test,
-            disk_masked=(args.task == 'regression'),
-        )
-        num_classes = 50
-        batch_size = 12
-        in_channels = 3
     else:
         raise NotImplementedError
 
     if args.backbone == 'B5':
         backbone = Backbone5x5(conv_func=conv_func, group=group, in_channels=in_channels)
+        max_epochs = 60
+        base_lr = 1e-2
+        gamma = 0.1
+        milestones = [20, 35, 45]
+
     elif args.backbone == 'WRN':
-        backbone = Wide_ResNet(28, 10, 0.3, initial_stride=2,
+        backbone = Wide_ResNet(16, 8, 0.3, initial_stride=2,
                 N=args.rotation, f=(args.reflection == 2), r=0, conv_func=conv_func,
-                fixparams=False, in_channels=in_channels)
+                fixparams=False)
+        max_epochs = 260
+        base_lr = 3e-2
+        gamma = 0.2
+        milestones = [50, 80, 110]
     else:
         raise NotImplementedError
 
     if args.task == 'classification':
-        head = ClassificationHead(backbone.out_type, num_classes=num_classes)
+        head = ClassificationHead(backbone.out_type, num_classes=10)
         cross_entropy_loss = torch.nn.CrossEntropyLoss()
         loss_function = lambda y, l, v: cross_entropy_loss(y, l)
         eval_function = mask_of_success
@@ -247,27 +176,23 @@ def train(args):
     ]))
     model = model.to(device)
     
-    if args.backbone == 'B5': # args.dataset.endswith('MNIST'):
-        optimizer = torch.optim.Adam(model.parameters(), lr=5e-5, weight_decay=1e-5)
-        scheduler = None
-        max_epochs = 60
-    elif args.backbone == 'WRN': # elif args.dataset == 'CIFAR10' or args.dataset == 'STL10':
-        if args.dataset == 'STL10':
-            base_lr = 2e-3
-        else:
-            base_lr = 1e-2
+    base_lr = 2e-2
+    if args.conv == 'R2Conv':
         optimizer = torch.optim.SGD(model.parameters(), lr=base_lr, momentum=0.9, weight_decay=5e-4)
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=45, gamma=0.2)
-        max_epochs = 260
+    elif args.conv == 'SSConv':
+        optimizer = torch.optim.SGD(model.parameters(), lr=base_lr, momentum=0.9, weight_decay=5e-4)
+    elif args.conv == 'PlainConv':
+        optimizer = torch.optim.SGD(model.parameters(), lr=base_lr, momentum=0.9, weight_decay=5e-4)
     else:
         raise NotImplementedError
-    
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=45, gamma=0.2)
+
     file_name = '_'.join([str(_) for _ in args.__dict__.values()])
     ckpt_name = file_name + '.pth'
     log_name = file_name + '.txt'
     log_file = open(log_name, 'w')
 
-    for epoch in range(max_epochs + 2):
+    for epoch in range(max_epochs):
         model.train()
     
         if device == 'cuda':
@@ -291,14 +216,8 @@ def train(args):
             loss = loss_function(y, l, v)
     
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 10)
     
-            # nv =  [(n, v.abs().max().item()) for (n, v) in model.named_parameters()]
-            # imax = max(range(len(nv)), key=lambda x: nv[x][1])
-            # print(loss.item(), nv[imax])
-
             optimizer.step()
-            
             # if i > 50:
             #     break
 
@@ -337,7 +256,6 @@ def train(args):
             log_file.write(f"epoch {epoch} | acc : {error} | lr : {lr}\n")
             log_file.flush()
 
-            # import pdb; pdb.set_trace()
             # exported = model.export()
             # torch.save(exported.state_dict(), ckpt_name)
         

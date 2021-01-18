@@ -7,7 +7,7 @@ import e2cnn
 import sscnn.e2cnn
 
 class Backbone5x5(nn.SequentialModule):
-    def __init__(self, conv_func, group):
+    def __init__(self, conv_func, group, in_channels):
         super(Backbone5x5, self).__init__()
 
         # the model is equivariant under rotations by 45 degrees, modelled by C8
@@ -15,7 +15,7 @@ class Backbone5x5(nn.SequentialModule):
         self.r2_act = group
 
         # the input image is a scalar field, corresponding to the trivial representation
-        in_type = nn.FieldType(self.r2_act, [self.r2_act.trivial_repr])
+        in_type = nn.FieldType(self.r2_act, in_channels * [self.r2_act.trivial_repr])
 
         # we store the input type for wrapping the images into a geometric tensor during the forward pass
         self.input_type = in_type

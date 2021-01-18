@@ -33,56 +33,85 @@ __all__ = [
 def conv7x7(conv_func, in_type: enn.FieldType, out_type: enn.FieldType, stride=1, padding=3,
             dilation=1, bias=False):
     """7x7 convolution with padding"""
-    return enn.R2Conv(in_type, out_type, 7,
-                      stride=stride,
-                      padding=padding,
-                      dilation=dilation,
-                      bias=bias,
-                      sigma=None,
-                      frequencies_cutoff=lambda r: 3*r,
-                      )
+    if conv_func == enn.R2Conv:
+        return conv_func(in_type, out_type, 7,
+                          stride=stride,
+                          padding=padding,
+                          dilation=dilation,
+                          bias=bias,
+                          sigma=None,
+                          frequencies_cutoff=lambda r: 3*r,
+                          )
+    else:
+        return conv_func(in_type, out_type, 7,
+                          stride=stride,
+                          padding=padding,
+                          dilation=dilation,
+                          bias=bias)
+
 
 
 def conv5x5(conv_func, in_type: enn.FieldType, out_type: enn.FieldType, stride=1, padding=2,
             dilation=1, bias=False):
     """5x5 convolution with padding"""
-    return enn.R2Conv(in_type, out_type, 5,
-                      stride=stride,
-                      padding=padding, 
-                      dilation=dilation,
-                      bias=bias,
-                      sigma=None,
-                      frequencies_cutoff=lambda r: 3*r,
-                      )
+    if conv_func == enn.R2Conv:
+        return conv_func(in_type, out_type, 5,
+                          stride=stride,
+                          padding=padding, 
+                          dilation=dilation,
+                          bias=bias,
+                          sigma=None,
+                          frequencies_cutoff=lambda r: 3*r,
+                          )
+    else:
+        return conv_func(in_type, out_type, 5,
+                          stride=stride,
+                          padding=padding,
+                          dilation=dilation,
+                          bias=bias)
 
 
 def conv3x3(conv_func, in_type: enn.FieldType, out_type: enn.FieldType, stride=1, padding=1,
             dilation=1, bias=False):
     """3x3 convolution with padding"""
-    return enn.R2Conv(in_type, out_type, 3,
-                      stride=stride,
-                      padding=padding,
-                      dilation=dilation,
-                      bias=bias,
-                      sigma=None,
-                      frequencies_cutoff=lambda r: 3*r,
-                      )
+    if conv_func == enn.R2Conv:
+        return conv_func(in_type, out_type, 3,
+                          stride=stride,
+                          padding=padding,
+                          dilation=dilation,
+                          bias=bias,
+                          sigma=None,
+                          frequencies_cutoff=lambda r: 3*r,
+                          )
+    else:
+        return conv_func(in_type, out_type, 3,
+                          stride=stride,
+                          padding=padding,
+                          dilation=dilation,
+                          bias=bias)
 
 
 def conv1x1(conv_func, in_type: enn.FieldType, out_type: enn.FieldType, stride=1, padding=0,
             dilation=1, bias=False):
     """1x1 convolution with padding"""
-    return enn.R2Conv(in_type, out_type, 1,
-                      stride=stride,
-                      padding=padding,
-                      dilation=dilation,
-                      bias=bias,
-                      sigma=None,
-                      frequencies_cutoff=lambda r: 3*r,
-                      )
+    if conv_func == enn.R2Conv:
+        return conv_func(in_type, out_type, 1,
+                          stride=stride,
+                          padding=padding,
+                          dilation=dilation,
+                          bias=bias,
+                          sigma=None,
+                          frequencies_cutoff=lambda r: 3*r,
+                          )
+    else:
+        return conv_func(in_type, out_type, 1,
+                          stride=stride,
+                          padding=padding,
+                          dilation=dilation,
+                          bias=bias)
 
 
-def regular_feature_type(gspace: gspaces.GSpace, planes: int, fixparams: bool = True):
+def regular_feature_type(gspace: gspaces.GSpace, planes: int, fixparams: bool):
     """ build a regular feature map with the specified number of channels"""
     assert gspace.fibergroup.order() > 0
     
@@ -97,7 +126,7 @@ def regular_feature_type(gspace: gspaces.GSpace, planes: int, fixparams: bool = 
     return enn.FieldType(gspace, [gspace.regular_repr] * planes)
 
 
-def trivial_feature_type(gspace: gspaces.GSpace, planes: int, fixparams: bool = True):
+def trivial_feature_type(gspace: gspaces.GSpace, planes: int, fixparams: bool):
     """ build a trivial feature map with the specified number of channels"""
     
     if fixparams:
@@ -190,6 +219,7 @@ class Wide_ResNet(enn.EquivariantModule):
                  fixparams: bool = True,
                  initial_stride: int = 1,
                  conv_func = None,
+                 in_channels = 3,
                  ):
         r"""
         
@@ -228,7 +258,7 @@ class Wide_ResNet(enn.EquivariantModule):
         
         print(f'| Wide-Resnet {depth}x{k}')
         
-        nStages = [16, 16 * k, 32 * k, 64 * k]
+        nStages = [16 * k, 16 * k, 32 * k, 64 * k]
         
         self._fixparams = fixparams
 
@@ -266,14 +296,14 @@ class Wide_ResNet(enn.EquivariantModule):
         
         # the input has 3 color channels (RGB).
         # Color channels are trivial fields and don't transform when the input is rotated or flipped
-        r1 = enn.FieldType(self.gspace, [self.gspace.trivial_repr] * 3)
+        r1 = enn.FieldType(self.gspace, [self.gspace.trivial_repr] * in_channels)
         
         # input field type of the model
         self.in_type = r1
         self.input_type = r1
         
         # in the first layer we always scale up the output channels to allow for enough independent filters
-        r2 = FIELD_TYPE["regular"](self.gspace, nStages[0], fixparams=True)
+        r2 = FIELD_TYPE["regular"](self.gspace, nStages[0], fixparams=fixparams)
         
         # dummy attribute keeping track of the output field type of the last submodule built, i.e. the input field type of
         # the next submodule to build
@@ -300,7 +330,7 @@ class Wide_ResNet(enn.EquivariantModule):
             self.restrict2 = lambda x: x
         
         # last layer maps to a trivial (invariant) feature map
-        self.layer3 = self._wide_layer(WideBasic, nStages[3], n, dropout_rate, stride=2, totrivial=True)
+        self.layer3 = self._wide_layer(WideBasic, nStages[3], n, dropout_rate, stride=2, totrivial=False)
         
         self.bn = enn.InnerBatchNorm(self.layer3.out_type, momentum=0.9)
         self.relu = enn.ReLU(self.bn.out_type, inplace=True)
@@ -312,6 +342,8 @@ class Wide_ResNet(enn.EquivariantModule):
             if isinstance(module, enn.R2Conv):
                 if deltaorth:
                     init.deltaorthonormal_init(module.weights, module.basisexpansion)
+            elif isinstance(module, torch.nn.Conv2d):
+                torch.nn.init.kaiming_normal_(module.weight)
             elif isinstance(module, torch.nn.BatchNorm2d):
                 module.weight.data.fill_(1)
                 module.bias.data.zero_()

@@ -243,42 +243,42 @@ class ConvTest(unittest.TestCase):
         nn.init.uniform_(conv.weight)
         x0 = torch.rand(self.batch_size, 2 * len(in_irreps), self.height, self.width)
 
-        from collections import OrderedDict
-        import sscnn.e2cnn
-        import e2cnn
-        from models import C8Backbone, RegressionHead
-        device = 'cpu'
-        conv_func = sscnn.e2cnn.SSConv
-        # conv_func = e2cnn.nn.R2Conv
-        # conv_func = sscnn.e2cnn.PlainConv
-        backbone = C8Backbone(out_channels=2, conv_func=conv_func)
-        head = RegressionHead(backbone.out_type, conv_func)
-        model = e2cnn.nn.SequentialModule(OrderedDict([
-            ('backbone', backbone), ('head', head)
-        ]))
-        model = model.to(device)
-        model = model.export()
-        
-        # sdict = torch.load(f'/mnt/workspace/sscnn/orient_state_{conv_func.__name__}.pth')
-        sdict = torch.load(f'/home/li/workspace/sscnn/orient_state_{conv_func.__name__}.pth')
-        model.load_state_dict(sdict)
-        
-        # model = model.backbone.block1
-        # modules = [_ for _ in model.modules()]
-        # assert isinstance(modules[3], IrrepToRegular)
-        # conv.weight[:] = modules[3].weight[:]
-        conv = torch.nn.Sequential(model.backbone.block1,
-                model.backbone.block2,
-                # model.backbone.pool1,
-                model.backbone.block3,
-                # model.backbone.block4,
-                # model.backbone.pool2,
-                # model.backbone.block5,
-                # model.backbone.block6,
-                # model.backbone.pool3,
-        )
-        # conv = model.backbone.block1
-        x0 = torch.rand(self.batch_size, 1, self.height, self.width)
+        # from collections import OrderedDict
+        # import sscnn.e2cnn
+        # import e2cnn
+        # from models import C8Backbone, RegressionHead
+        # device = 'cpu'
+        # conv_func = sscnn.e2cnn.SSConv
+        # # conv_func = e2cnn.nn.R2Conv
+        # # conv_func = sscnn.e2cnn.PlainConv
+        # backbone = C8Backbone(out_channels=2, conv_func=conv_func)
+        # head = RegressionHead(backbone.out_type, conv_func)
+        # model = e2cnn.nn.SequentialModule(OrderedDict([
+        #     ('backbone', backbone), ('head', head)
+        # ]))
+        # model = model.to(device)
+        # model = model.export()
+        # 
+        # # sdict = torch.load(f'/mnt/workspace/sscnn/orient_state_{conv_func.__name__}.pth')
+        # sdict = torch.load(f'/home/li/workspace/sscnn/orient_state_{conv_func.__name__}.pth')
+        # model.load_state_dict(sdict)
+        # 
+        # # model = model.backbone.block1
+        # # modules = [_ for _ in model.modules()]
+        # # assert isinstance(modules[3], IrrepToRegular)
+        # # conv.weight[:] = modules[3].weight[:]
+        # conv = torch.nn.Sequential(model.backbone.block1,
+        #         model.backbone.block2,
+        #         # model.backbone.pool1,
+        #         model.backbone.block3,
+        #         # model.backbone.block4,
+        #         # model.backbone.pool2,
+        #         # model.backbone.block5,
+        #         # model.backbone.block6,
+        #         # model.backbone.pool3,
+        # )
+        # # conv = model.backbone.block1
+        # x0 = torch.rand(self.batch_size, 1, self.height, self.width)
         
 
         for i in range(self.rotation):

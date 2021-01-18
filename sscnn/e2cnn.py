@@ -8,16 +8,16 @@ import sscnn.conv
 import time
 
 def convert_field_type(field):
-    if field.representations[0].name.startswith('irrep'):
-        assert all(_.name.startswith('irrep') for _ in field.representations)
+    if 'irrep' in field.representations[0].name:
+        assert all('irrep' in _.name for _ in field.representations)
         converted = [(
             rep.attributes.pop('flip_frequency', 0),
             rep.attributes.pop('frequency', 0)
         ) for rep in field.representations]
         mult = len(converted)
         dim = 2
-    elif field.representations[0].name.startswith('regular'):
-        assert all(_.name.startswith('regular') for _ in field.representations)
+    elif 'regular' in field.representations[0].name:
+        assert all('regular' in _.name for _ in field.representations)
         converted = len(field.representations)
         mult = converted
         dim = field.representations[0].group.order()

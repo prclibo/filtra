@@ -8,27 +8,15 @@ DATA_FOLDER='/data/'
 
 from sscnn.rotater import LARGE
 
-'''
-def batch_rotate(images, angles):
-    N, C, H, W = images.shape
-    aff = images.new_zeros(N, 2, 3)
-    cosa, sina = angles.cos(), angles.sin()
-    aff[:, 0, 0] = cosa
-    aff[:, 0, 1] = -sina
-    aff[:, 1, 0] = sina
-    aff[:, 1, 1] = cosa
-    grid = F.affine_grid(aff, images.shape, False)
-    rotated = F.grid_sample(images, grid, align_corners=False, 
-            padding_mode='zeros', mode='bilinear') 
-    return rotated
-'''
-
 class TransformedDataset(Dataset):
-    def __init__(self, dataset, random_rotate=True, random_reflect=True):
+    def __init__(self, dataset, random_rotate=True, random_reflect=True, disk_masked=True):
         super(TransformedDataset, self).__init__()
         self.dataset = dataset
         self.random_rotate = random_rotate
         self.random_reflect = random_reflect
+        self.disk_masked = disk_masked
+
+        print('self.disk_masked', disk_masked)
 
     def _transform_data(self, angle, reflect, image):
         assert len(image.shape) == 3
@@ -40,8 +28,9 @@ class TransformedDataset(Dataset):
         # print(ref, rot)
 
         # N x H x W
-        out_mask = (grid.norm(dim=-1) > 1).unsqueeze(-1)
-        grid.masked_fill_(out_mask, LARGE)
+        if self.disk_masked:
+            out_mask = (grid.norm(dim=-1) > 1).unsqueeze(-1)
+            grid.masked_fill_(out_mask, LARGE)
 
         rotated = F.grid_sample(image[None, ...], grid, align_corners=False,
                 padding_mode='zeros', mode='bilinear') 
@@ -70,15 +59,17 @@ class TransformedDataset(Dataset):
         if self.random_rotate:
             angle = np.random.uniform(2 * np.pi)
         else:
-            angle = 0.0
+            angle = 0
 
         if self.random_reflect:
             reflect = float(np.random.randint(2))
         else:
-            reflect = 0.0
-        # image = torch.from_numpy(image)# .transpose(0, 1)
+            reflect = 0
 
-        rotated, orient = self._transform_data(angle, reflect, image)
+        if angle == 0 and reflect == 0:
+            rotated, orient = image, torch.Tensor([1., 0.])
+        else:
+            rotated, orient = self._transform_data(float(angle), float(reflect), image)
 
         return rotated, label, orient
 
