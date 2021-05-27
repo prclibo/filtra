@@ -5,8 +5,8 @@ import numpy as np
 import torch
 from torch import nn
 
-from sscnn.conv import *
-from sscnn.utils import *
+from filtra.conv import *
+from filtra.utils import *
 
 import e2cnn
 
@@ -236,7 +236,7 @@ class ConvTest(unittest.TestCase):
         in_irreps = [(s, r) for s in range(group[0]) for r in range(group[1] // 2 + 1)]
         in_irreps = [(0, 0)]
         out_mult = 2
-        out_mult = 24
+        # out_mult = 24
         self.kernel_size = 5
         self.batch_size = 1
         conv = IrrepToRegular(group, in_irreps, out_mult, self.kernel_size, bias=False)
@@ -244,13 +244,13 @@ class ConvTest(unittest.TestCase):
         x0 = torch.rand(self.batch_size, 2 * len(in_irreps), self.height, self.width)
 
         # from collections import OrderedDict
-        # import sscnn.e2cnn
+        # import filtra.e2cnn
         # import e2cnn
         # from models import C8Backbone, RegressionHead
         # device = 'cpu'
-        # conv_func = sscnn.e2cnn.SSConv
+        # conv_func = filtra.e2cnn.SSConv
         # # conv_func = e2cnn.nn.R2Conv
-        # # conv_func = sscnn.e2cnn.PlainConv
+        # # conv_func = filtra.e2cnn.PlainConv
         # backbone = C8Backbone(out_channels=2, conv_func=conv_func)
         # head = RegressionHead(backbone.out_type, conv_func)
         # model = e2cnn.nn.SequentialModule(OrderedDict([
@@ -259,8 +259,8 @@ class ConvTest(unittest.TestCase):
         # model = model.to(device)
         # model = model.export()
         # 
-        # # sdict = torch.load(f'/mnt/workspace/sscnn/orient_state_{conv_func.__name__}.pth')
-        # sdict = torch.load(f'/home/li/workspace/sscnn/orient_state_{conv_func.__name__}.pth')
+        # # sdict = torch.load(f'/mnt/workspace/filtra/orient_state_{conv_func.__name__}.pth')
+        # sdict = torch.load(f'/home/li/workspace/filtra/orient_state_{conv_func.__name__}.pth')
         # model.load_state_dict(sdict)
         # 
         # # model = model.backbone.block1
@@ -285,22 +285,23 @@ class ConvTest(unittest.TestCase):
             elem = (0, i)
 
             y0 = conv.forward(x0)
-            x1 = rotate_trivials(x0, elem, group)
-            # x1 = rotate_irreps(x0, elem, in_irreps, group)
+            # x1 = rotate_trivials(x0, elem, group)
+            x1 = rotate_irreps(x0, elem, in_irreps, group)
             y1 = conv.forward(x1)
             y1_ = rotate_regulars(y0, elem, group)
 
-            y0 = y0.view(self.batch_size, -1, 8, y0.shape[-2], y0.shape[-1])
-            y1 = y1.view(self.batch_size, -1, 8, y1.shape[-2], y1.shape[-1])
+            # y0 = y0.view(self.batch_size, -1, out_mult, y0.shape[-2], y0.shape[-1])
+            # y1 = y1.view(self.batch_size, -1, out_mult, y1.shape[-2], y1.shape[-1])
+            # y1_ = y1_.view(self.batch_size, -1, out_mult, y1.shape[-2], y1.shape[-1])
 
-            print(y0[0, 2, :, y0.shape[-2] // 2, y0.shape[-1] // 2])
-            print(y1[0, 2, :, y0.shape[-2] // 2, y0.shape[-1] // 2])
-            # print(y1_[0, ::24, y0.shape[-2] // 2, y0.shape[-1] // 2])
-            print('--;')
+            # print(y0[0, 2, :, y0.shape[-2] // 2, y0.shape[-1] // 2])
+            # print(y1[0, 2, :, y0.shape[-2] // 2, y0.shape[-1] // 2])
+            # # print(y1_[0, ::24, y0.shape[-2] // 2, y0.shape[-1] // 2])
+            # print('--;')
             # import pdb; pdb.set_trace()
 
-            # rel_err_ss = comp_regular_rel_err(group, y1, y1_)
-            # print(elem, 'max_rel_err =', rel_err_ss.detach())
+            rel_err_ss = comp_regular_rel_err(group, y1, y1_)
+            print(elem, 'max_rel_err =', rel_err_ss.detach())
 
     def test_irrep_to_regular_Dn(self):
         group = (2, self.rotation)

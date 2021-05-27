@@ -5,8 +5,8 @@ import numpy as np
 import torch
 from torch import nn
 
-from sscnn.conv import *
-from sscnn.utils import *
+from filtra.conv import *
+from filtra.utils import *
 
 class ReprTest(unittest.TestCase):
     def setUp(self):
@@ -50,6 +50,7 @@ class ReprTest(unittest.TestCase):
         
         print(regular_mat0)
         print(regular_mat1)
+        return
 
         import matplotlib.pyplot as plt
         fig = plt.figure()
