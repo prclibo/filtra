@@ -3,10 +3,9 @@
 [![BSD-3-Clause](https://img.shields.io/github/license/prclibo/relative_pose)](https://github.com/prclibo/relative_pose/blob/master/LICENSE)
 [![ECCV 2020](https://img.shields.io/badge/ICML-2021-%231b75bc)]()
 
-This repository hosts the code for the FILTRA steerable CNN proposed in our ICML 2021 paper:
-
 ![thumbnail](./filtra-thumb.png)
 
+This repository hosts the code for the FILTRA steerable CNN proposed in our ICML 2021 paper:
 ```
 @inproceedings{DBLP:conf/icml/LiWL21,
   author    = {Bo Li and
