@@ -5,6 +5,8 @@
 
 This repository hosts the code for the FILTRA steerable CNN proposed in our ICML 2021 paper:
 
+![thumbnail](./filtra-thumb.png)
+
 ```
 @inproceedings{DBLP:conf/icml/LiWL21,
   author    = {Bo Li and
