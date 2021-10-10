@@ -6,7 +6,25 @@
 This repository hosts the code for the FILTRA steerable CNN proposed in our ICML 2021 paper:
 
 ```
-@article
+@inproceedings{DBLP:conf/icml/LiWL21,
+  author    = {Bo Li and
+               Qili Wang and
+               Gim Hee Lee},
+  editor    = {Marina Meila and
+               Tong Zhang},
+  title     = {{FILTRA:} Rethinking Steerable {CNN} by Filter Transform},
+  booktitle = {Proceedings of the 38th International Conference on Machine Learning,
+               {ICML} 2021, 18-24 July 2021, Virtual Event},
+  series    = {Proceedings of Machine Learning Research},
+  volume    = {139},
+  pages     = {6515--6522},
+  publisher = {{PMLR}},
+  year      = {2021},
+  url       = {http://proceedings.mlr.press/v139/li21v.html},
+  timestamp = {Wed, 25 Aug 2021 17:11:17 +0200},
+  biburl    = {https://dblp.org/rec/conf/icml/LiWL21.bib},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
+}
 ```
 
 The convolution module has three APIs which can be found in `filtra/conv.py`. See the docstring inside for detailed usage.
