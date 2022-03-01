@@ -1,30 +1,21 @@
 # FILTRA: Rethinking Steerable CNN by Filter Transform
 
 [![BSD-3-Clause](https://img.shields.io/github/license/prclibo/relative_pose)](https://github.com/prclibo/relative_pose/blob/master/LICENSE)
-[![ECCV 2020](https://img.shields.io/badge/ICML-2021-%231b75bc)]()
+[![ICML 2021](https://img.shields.io/badge/ICML-2021-%231b75bc)](http://proceedings.mlr.press/v139/li21v/li21v.pdf)
+[![arXiv:2105.11636](https://img.shields.io/badge/cs.CV-arXiv%3A2105.11636-B31B1B.svg)](https://arxiv.org/abs/2105.11636)
+
 
 ![thumbnail](./filtra-thumb.png)
 
 This repository hosts the code for the FILTRA steerable CNN proposed in our ICML 2021 paper:
 ```
-@inproceedings{DBLP:conf/icml/LiWL21,
-  author    = {Bo Li and
-               Qili Wang and
-               Gim Hee Lee},
-  editor    = {Marina Meila and
-               Tong Zhang},
-  title     = {{FILTRA:} Rethinking Steerable {CNN} by Filter Transform},
-  booktitle = {Proceedings of the 38th International Conference on Machine Learning,
-               {ICML} 2021, 18-24 July 2021, Virtual Event},
-  series    = {Proceedings of Machine Learning Research},
-  volume    = {139},
-  pages     = {6515--6522},
-  publisher = {{PMLR}},
-  year      = {2021},
-  url       = {http://proceedings.mlr.press/v139/li21v.html},
-  timestamp = {Wed, 25 Aug 2021 17:11:17 +0200},
-  biburl    = {https://dblp.org/rec/conf/icml/LiWL21.bib},
-  bibsource = {dblp computer science bibliography, https://dblp.org}
+@inproceedings{li2021filtra,
+  title={FILTRA: Rethinking Steerable CNN by Filter Transform},
+  author={Li, Bo and Wang, Qili and Lee, Gim Hee},
+  booktitle={International Conference on Machine Learning},
+  pages={6515--6522},
+  year={2021},
+  organization={PMLR}
 }
 ```
 
